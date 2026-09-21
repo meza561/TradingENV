@@ -521,7 +521,7 @@ git commit -m "feat: extract 8-K Item 2.02 events with ET acceptance timestamps"
 
 ---
 
-### Task 5: Price fetch via headless Claude
+### Task 5: Price fetch via headless Claude, chunked by year
 
 **Files:**
 - Create: `ebot/prices.py`
@@ -529,9 +529,16 @@ git commit -m "feat: extract 8-K Item 2.02 events with ET acceptance timestamps"
 
 **Interfaces:**
 - Consumes: `Bar` (Task 1), `get_conn` (Task 2)
-- Produces: `load_bars(symbol: str, cfg: Config) -> list[Bar]` (cache-first, sorted ascending by date); `fetch_bars_via_claude(symbol: str, cfg: Config, runner=None) -> list[Bar]`. `runner` is an injectable `(argv: list[str]) -> str` returning stdout.
+- Produces: `load_bars(symbol, cfg) -> list[Bar]`; `fetch_year(symbol, year, cfg, runner=None) -> list[Bar]`; `fetch_all_years(symbol, cfg, runner=None) -> list[Bar]`; `ALLOWED_TOOLS`
 
-**CRITICAL:** the allowlist in this module contains exactly one tool. A test asserts no order tool can appear in the argv.
+**Why chunked:** a single full-history request returns roughly 555 KB of JSON for
+one symbol — observed in practice, and large enough to exceed the tool-result
+limit. One call per calendar year keeps each response near 45 KB. Year chunks
+are also individually cacheable, so an interrupted fetch resumes instead of
+restarting.
+
+**CRITICAL:** the allowlist contains exactly one read-only tool. A test asserts
+no order tool can appear in the argv.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -539,17 +546,20 @@ git commit -m "feat: extract 8-K Item 2.02 events with ET acceptance timestamps"
 # tests/test_prices.py
 import json, datetime as dt
 from pathlib import Path
-from ebot.prices import fetch_bars_via_claude, load_bars, ALLOWED_TOOLS
+from ebot.prices import fetch_year, fetch_all_years, load_bars, ALLOWED_TOOLS
 from ebot.config import load_config
 
 def cfg_for(tmp_path):
     return load_config(Path("config.example.yaml")).model_copy(
         update={"cache_dir": tmp_path})
 
-PAYLOAD = json.dumps({"bars": [
-    {"date": "2026-01-02", "open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5, "volume": 100},
-    {"date": "2026-01-03", "open": 1.5, "high": 2.5, "low": 1.0, "close": 2.0, "volume": 200},
-]})
+def payload(year):
+    return json.dumps({"bars": [
+        {"date": f"{year}-01-02", "open": 1.0, "high": 2.0, "low": 0.5,
+         "close": 1.5, "volume": 100},
+        {"date": f"{year}-01-03", "open": 1.5, "high": 2.5, "low": 1.0,
+         "close": 2.0, "volume": 200},
+    ]})
 
 def test_allowlist_is_read_only():
     assert ALLOWED_TOOLS == ["mcp__robinhood-trading__get_equity_historicals"]
@@ -560,30 +570,47 @@ def test_allowlist_is_read_only():
 def test_argv_never_contains_order_tool(tmp_path):
     seen = {}
     def runner(argv):
-        seen["argv"] = argv; return PAYLOAD
-    fetch_bars_via_claude("AAPL", cfg_for(tmp_path), runner=runner)
-    flat = " ".join(seen["argv"]).lower()
+        seen["argv"] = argv; return payload(2020)
+    fetch_year("AAPL", 2020, cfg_for(tmp_path), runner=runner)
+    flat = " ".join(seen["argv"])
     assert "place_equity_order" not in flat
-    assert "--allowedtools" in flat.lower() or "--allowedTools" in " ".join(seen["argv"])
+    assert "--allowedTools" in flat
 
-def test_parses_and_caches(tmp_path):
+def test_request_window_is_bounded_to_the_year(tmp_path):
+    seen = {}
+    def runner(argv):
+        seen["argv"] = argv; return payload(2020)
+    fetch_year("AAPL", 2020, cfg_for(tmp_path), runner=runner)
+    flat = " ".join(seen["argv"])
+    assert "2020-01-01" in flat and "2020-12-31" in flat
+
+def test_fetch_all_years_skips_cached_years(tmp_path):
     calls = []
     def runner(argv):
-        calls.append(argv); return PAYLOAD
-    c = cfg_for(tmp_path)
-    bars = fetch_bars_via_claude("AAPL", c, runner=runner)
-    assert len(bars) == 2
-    assert bars[0].date == dt.date(2026, 1, 2)
-    assert bars[0].close == 1.5
-    cached = load_bars("AAPL", c)          # must not call runner again
-    assert len(cached) == 2
-    assert len(calls) == 1
+        calls.append(argv)
+        year = next(a for a in argv if "-01-01" in a)[:4]
+        return payload(year)
+    c = cfg_for(tmp_path).model_copy(update={"price_floor": dt.date(2020, 1, 1)})
+    fetch_all_years("AAPL", c, runner=runner)
+    n_first = len(calls)
+    assert n_first >= 2
+    fetch_all_years("AAPL", c, runner=runner)   # second pass: all cached
+    assert len(calls) == n_first, "cached years must not be refetched"
 
 def test_rejects_unparseable_output(tmp_path):
     import pytest
     def runner(argv): return "I could not find that data, sorry!"
     with pytest.raises(ValueError):
-        fetch_bars_via_claude("AAPL", cfg_for(tmp_path), runner=runner)
+        fetch_year("AAPL", 2020, cfg_for(tmp_path), runner=runner)
+
+def test_rejects_bars_outside_requested_year(tmp_path):
+    import pytest
+    def runner(argv):
+        return json.dumps({"bars": [
+            {"date": "2019-06-01", "open": 1, "high": 1, "low": 1,
+             "close": 1, "volume": 1}]})
+    with pytest.raises(ValueError, match="outside requested year"):
+        fetch_year("AAPL", 2020, cfg_for(tmp_path), runner=runner)
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -603,8 +630,8 @@ from ebot.types import Bar
 ALLOWED_TOOLS = ["mcp__robinhood-trading__get_equity_historicals"]
 
 PROMPT = """Call get_equity_historicals for symbol {symbol} with
-start_time="{start}T00:00:00Z", interval="day", adjustment_type="split",
-bounds="regular".
+start_time="{start}T00:00:00Z", end_time="{end}T23:59:59Z", interval="day",
+adjustment_type="split", bounds="regular".
 Reply with ONLY a JSON object, no prose, no code fence:
 {{"bars":[{{"date":"YYYY-MM-DD","open":0,"high":0,"low":0,"close":0,"volume":0}}]}}"""
 
@@ -612,29 +639,53 @@ def _run(argv: list[str]) -> str:
     return subprocess.run(argv, capture_output=True, text=True,
                           timeout=300, check=True).stdout
 
-def fetch_bars_via_claude(symbol: str, cfg: Config, runner=None) -> list[Bar]:
+def _cached_years(symbol: str, cfg: Config) -> set[int]:
+    conn = get_conn(cfg.cache_dir, "prices")
+    rows = conn.execute(
+        "SELECT DISTINCT substr(date,1,4) AS y FROM bars WHERE symbol = ?",
+        (symbol,)).fetchall()
+    return {int(r["y"]) for r in rows}
+
+def fetch_year(symbol: str, year: int, cfg: Config, runner=None) -> list[Bar]:
     runner = runner or _run
+    start, end = f"{year}-01-01", f"{year}-12-31"
     argv = ["claude", "-p", "--allowedTools", ",".join(ALLOWED_TOOLS),
-            PROMPT.format(symbol=symbol, start=cfg.price_floor.isoformat())]
+            PROMPT.format(symbol=symbol, start=start, end=end)]
     assert not any("place_" in a or "cancel_" in a for a in argv), \
         "order tool leaked into price fetch argv"
     out = runner(argv)
     m = re.search(r"\{.*\}", out, re.S)
     if not m:
-        raise ValueError(f"no JSON in claude output for {symbol}: {out[:200]!r}")
+        raise ValueError(f"no JSON in claude output for {symbol} {year}: {out[:200]!r}")
     try:
         rows = json.loads(m.group(0))["bars"]
     except (json.JSONDecodeError, KeyError) as e:
-        raise ValueError(f"unparseable bars for {symbol}: {e}") from e
-    bars = [Bar(symbol=symbol, date=dt.date.fromisoformat(r["date"]),
-                open=float(r["open"]), high=float(r["high"]), low=float(r["low"]),
-                close=float(r["close"]), volume=int(r["volume"])) for r in rows]
+        raise ValueError(f"unparseable bars for {symbol} {year}: {e}") from e
+
+    bars = []
+    for r in rows:
+        d = dt.date.fromisoformat(r["date"])
+        if d.year != year:
+            raise ValueError(
+                f"{symbol}: bar {d} outside requested year {year}")
+        bars.append(Bar(symbol=symbol, date=d, open=float(r["open"]),
+                        high=float(r["high"]), low=float(r["low"]),
+                        close=float(r["close"]), volume=int(r["volume"])))
     conn = get_conn(cfg.cache_dir, "prices")
     conn.executemany("INSERT OR REPLACE INTO bars VALUES (?,?,?,?,?,?,?)",
                      [(b.symbol, b.date.isoformat(), b.open, b.high, b.low,
                        b.close, b.volume) for b in bars])
     conn.commit()
     return sorted(bars, key=lambda b: b.date)
+
+def fetch_all_years(symbol: str, cfg: Config, runner=None) -> list[Bar]:
+    have = _cached_years(symbol, cfg)
+    this_year = dt.date.today().year
+    for year in range(cfg.price_floor.year, this_year + 1):
+        if year in have and year != this_year:
+            continue                      # current year always refetched
+        fetch_year(symbol, year, cfg, runner)
+    return load_bars(symbol, cfg)
 
 def load_bars(symbol: str, cfg: Config) -> list[Bar]:
     conn = get_conn(cfg.cache_dir, "prices")
@@ -648,13 +699,373 @@ def load_bars(symbol: str, cfg: Config) -> list[Bar]:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/test_prices.py -v`
-Expected: 4 passed
+Expected: 6 passed
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add ebot/prices.py tests/test_prices.py
-git commit -m "feat: headless price fetch with read-only tool allowlist"
+git commit -m "feat: year-chunked price fetch with read-only tool allowlist"
+```
+
+---
+
+### Task 5b: Bar data-integrity validation
+
+**Files:**
+- Create: `ebot/validate_bars.py`
+- Test: `tests/test_validate_bars.py`
+
+**Interfaces:**
+- Consumes: `Bar` (Task 1), `Config` (Task 1)
+- Produces: `BarIssue` frozen dataclass (`symbol, date, kind, detail`);
+  `validate_bars(bars: list[Bar], cfg: Config) -> list[BarIssue]`;
+  `FATAL_KINDS: frozenset[str]`
+
+**Severity model.** Structural impossibilities are fatal — an OHLC violation or a
+duplicate date means the data is wrong, and a backtest on wrong data is worse
+than no backtest. Statistical oddities are warnings: a 30% single-day move is
+usually a real event (META fell 26% on 2022-02-03), so flagging is right and
+failing is not.
+
+| kind | Meaning | Fatal |
+|------|---------|-------|
+| `ohlc` | `high < low`, price outside `[low, high]`, non-positive price, negative volume | yes |
+| `duplicate` | same symbol+date twice | yes |
+| `count` | calendar year with < 220 or > 260 sessions | no |
+| `gap` | > 5 consecutive missing business days | no |
+| `extreme` | abs(close-to-close return) > 25% | no |
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+# tests/test_validate_bars.py
+import datetime as dt
+from pathlib import Path
+from ebot.config import load_config
+from ebot.types import Bar
+from ebot.validate_bars import validate_bars, FATAL_KINDS
+
+CFG = load_config(Path("config.example.yaml"))
+
+def good_year(year=2020, n=252, px=100.0):
+    out, d = [], dt.date(year, 1, 1)
+    while len(out) < n:
+        if d.weekday() < 5:
+            out.append(Bar("X", d, px, px * 1.01, px * 0.99, px, 1_000_000))
+        d += dt.timedelta(days=1)
+    return out
+
+def kinds(issues):
+    return {i.kind for i in issues}
+
+def test_clean_data_has_no_issues():
+    assert validate_bars(good_year(), CFG) == []
+
+def test_high_below_low_is_fatal():
+    bars = good_year()
+    bars[10] = Bar("X", bars[10].date, 100, 90.0, 110.0, 100, 1_000_000)
+    issues = validate_bars(bars, CFG)
+    assert "ohlc" in kinds(issues)
+    assert "ohlc" in FATAL_KINDS
+
+def test_close_outside_high_low_is_fatal():
+    bars = good_year()
+    bars[10] = Bar("X", bars[10].date, 100, 101.0, 99.0, 500.0, 1_000_000)
+    assert "ohlc" in kinds(validate_bars(bars, CFG))
+
+def test_zero_price_is_fatal():
+    bars = good_year()
+    bars[10] = Bar("X", bars[10].date, 0.0, 0.0, 0.0, 0.0, 1_000_000)
+    assert "ohlc" in kinds(validate_bars(bars, CFG))
+
+def test_negative_volume_is_fatal():
+    bars = good_year()
+    b = bars[10]
+    bars[10] = Bar("X", b.date, b.open, b.high, b.low, b.close, -5)
+    assert "ohlc" in kinds(validate_bars(bars, CFG))
+
+def test_duplicate_date_is_fatal():
+    bars = good_year()
+    bars.append(bars[10])
+    issues = validate_bars(bars, CFG)
+    assert "duplicate" in kinds(issues)
+    assert "duplicate" in FATAL_KINDS
+
+def test_short_year_flagged_as_count():
+    issues = validate_bars(good_year(n=150), CFG)
+    assert "count" in kinds(issues)
+    assert "count" not in FATAL_KINDS
+
+def test_long_gap_flagged():
+    bars = good_year()
+    del bars[100:115]                      # ~3 weeks missing
+    assert "gap" in kinds(validate_bars(bars, CFG))
+
+def test_extreme_move_flagged_not_fatal():
+    bars = good_year()
+    b = bars[50]
+    bars[50] = Bar("X", b.date, 100, 200.0, 99.0, 180.0, 1_000_000)
+    issues = validate_bars(bars, CFG)
+    assert "extreme" in kinds(issues)
+    assert "extreme" not in FATAL_KINDS
+
+def test_issue_carries_symbol_and_date():
+    bars = good_year()
+    bars[10] = Bar("X", bars[10].date, 100, 90.0, 110.0, 100, 1_000_000)
+    i = next(i for i in validate_bars(bars, CFG) if i.kind == "ohlc")
+    assert i.symbol == "X" and i.date == bars[10].date and i.detail
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pytest tests/test_validate_bars.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'ebot.validate_bars'`
+
+- [ ] **Step 3: Write minimal implementation**
+
+```python
+# ebot/validate_bars.py
+import datetime as dt
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+from ebot.config import Config
+from ebot.types import Bar
+
+FATAL_KINDS = frozenset({"ohlc", "duplicate"})
+MAX_GAP_BUSINESS_DAYS = 5
+EXTREME_MOVE = 0.25
+MIN_SESSIONS, MAX_SESSIONS = 220, 260
+
+@dataclass(frozen=True)
+class BarIssue:
+    symbol: str
+    date: dt.date | None
+    kind: str
+    detail: str
+
+def _business_days(a: dt.date, b: dt.date) -> int:
+    n, d = 0, a + dt.timedelta(days=1)
+    while d < b:
+        if d.weekday() < 5:
+            n += 1
+        d += dt.timedelta(days=1)
+    return n
+
+def validate_bars(bars: list[Bar], cfg: Config) -> list[BarIssue]:
+    issues: list[BarIssue] = []
+    if not bars:
+        return issues
+    sym = bars[0].symbol
+
+    for b in bars:
+        bad = (b.high < b.low
+               or not (b.low <= b.open <= b.high)
+               or not (b.low <= b.close <= b.high)
+               or min(b.open, b.high, b.low, b.close) <= 0
+               or b.volume < 0)
+        if bad:
+            issues.append(BarIssue(sym, b.date, "ohlc",
+                f"o={b.open} h={b.high} l={b.low} c={b.close} v={b.volume}"))
+
+    for d, n in Counter(b.date for b in bars).items():
+        if n > 1:
+            issues.append(BarIssue(sym, d, "duplicate", f"{n} rows for {d}"))
+
+    per_year: dict[int, int] = defaultdict(int)
+    for b in bars:
+        per_year[b.date.year] += 1
+    current = dt.date.today().year
+    for year, n in sorted(per_year.items()):
+        if year == current:
+            continue                       # partial by definition
+        if not (MIN_SESSIONS <= n <= MAX_SESSIONS):
+            issues.append(BarIssue(sym, None, "count",
+                                   f"{year} has {n} sessions"))
+
+    ordered = sorted(bars, key=lambda b: b.date)
+    for prev, cur in zip(ordered, ordered[1:]):
+        if _business_days(prev.date, cur.date) > MAX_GAP_BUSINESS_DAYS:
+            issues.append(BarIssue(sym, cur.date, "gap",
+                                   f"{prev.date} -> {cur.date}"))
+        if prev.close > 0:
+            move = cur.close / prev.close - 1.0
+            if abs(move) > EXTREME_MOVE:
+                issues.append(BarIssue(sym, cur.date, "extreme",
+                                       f"{move:+.1%} from {prev.date}"))
+    return issues
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pytest tests/test_validate_bars.py -v`
+Expected: 10 passed
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add ebot/validate_bars.py tests/test_validate_bars.py
+git commit -m "feat: bar data-integrity validation with fatal/warning split"
+```
+
+---
+
+### Task 5c: Independent-source cross-check on event windows
+
+**Files:**
+- Create: `ebot/crosscheck.py`
+- Test: `tests/test_crosscheck.py`
+
+**Interfaces:**
+- Consumes: `Bar` (Task 1), `Config` (Task 1)
+- Produces: `parse_stooq_csv(text: str, symbol: str) -> list[Bar]`;
+  `crosscheck_window(bars, ref_bars, dates, tol=0.005) -> list[BarIssue]`;
+  `fetch_stooq(symbol, start, end, fetch=None) -> list[Bar]`
+
+**Why an independent source.** The price cache and the event dates both arrive
+through one vendor. A systematic adjustment error — a missed split, a wrong
+dividend adjustment — would be invisible to internal validation because every
+internal check would agree with itself. Stooq is free, needs no key, and is
+independently sourced. Only **event windows** are cross-checked, not the whole
+history: that is where a bad price changes a trade.
+
+Tolerance is 0.5%, which absorbs legitimate vendor differences in dividend
+adjustment while still catching a missed split (which shows up as ~50%+).
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+# tests/test_crosscheck.py
+import datetime as dt, pytest
+from ebot.crosscheck import parse_stooq_csv, crosscheck_window, fetch_stooq
+from ebot.types import Bar
+
+CSV = """Date,Open,High,Low,Close,Volume
+2020-01-02,100.0,101.0,99.0,100.5,1000000
+2020-01-03,100.5,102.0,100.0,101.0,1100000
+"""
+
+def test_parses_stooq_csv():
+    bars = parse_stooq_csv(CSV, "X")
+    assert len(bars) == 2
+    assert bars[0].date == dt.date(2020, 1, 2)
+    assert bars[0].close == 100.5
+    assert bars[1].volume == 1100000
+
+def test_parse_ignores_blank_and_malformed_rows():
+    bars = parse_stooq_csv(CSV + "\n\nN/A,N/A,N/A,N/A,N/A,N/A\n", "X")
+    assert len(bars) == 2
+
+def test_matching_prices_produce_no_issues():
+    ours = parse_stooq_csv(CSV, "X")
+    theirs = parse_stooq_csv(CSV, "X")
+    assert crosscheck_window(ours, theirs, [dt.date(2020, 1, 2)]) == []
+
+def test_small_difference_within_tolerance_ok():
+    ours = parse_stooq_csv(CSV, "X")
+    theirs = [Bar("X", b.date, b.open, b.high, b.low, b.close * 1.002, b.volume)
+              for b in ours]
+    assert crosscheck_window(ours, theirs, [dt.date(2020, 1, 2)]) == []
+
+def test_missed_split_is_caught():
+    ours = parse_stooq_csv(CSV, "X")
+    theirs = [Bar("X", b.date, b.open, b.high, b.low, b.close * 4.0, b.volume)
+              for b in ours]
+    issues = crosscheck_window(ours, theirs, [dt.date(2020, 1, 2)])
+    assert len(issues) == 1
+    assert issues[0].kind == "crosscheck"
+    assert "4" in issues[0].detail or "300" in issues[0].detail
+
+def test_date_missing_from_reference_is_reported():
+    ours = parse_stooq_csv(CSV, "X")
+    issues = crosscheck_window(ours, [], [dt.date(2020, 1, 2)])
+    assert issues and issues[0].kind == "crosscheck"
+
+def test_fetch_stooq_builds_expected_url():
+    seen = {}
+    def fake(url):
+        seen["url"] = url; return CSV
+    fetch_stooq("AAPL", dt.date(2020, 1, 1), dt.date(2020, 12, 31), fetch=fake)
+    assert "aapl.us" in seen["url"]
+    assert "d1=20200101" in seen["url"] and "d2=20201231" in seen["url"]
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pytest tests/test_crosscheck.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'ebot.crosscheck'`
+
+- [ ] **Step 3: Write minimal implementation**
+
+```python
+# ebot/crosscheck.py
+import csv, io, datetime as dt, time, urllib.request
+from ebot.types import Bar
+from ebot.validate_bars import BarIssue
+
+STOOQ = ("https://stooq.com/q/d/l/?s={sym}.us&d1={d1}&d2={d2}&i=d")
+_last = [0.0]
+
+def _fetch(url: str) -> str:
+    elapsed = time.monotonic() - _last[0]
+    if elapsed < 0.5:
+        time.sleep(0.5 - elapsed)
+    _last[0] = time.monotonic()
+    req = urllib.request.Request(url, headers={"User-Agent": "ebot-research"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read().decode()
+
+def parse_stooq_csv(text: str, symbol: str) -> list[Bar]:
+    out = []
+    for row in csv.DictReader(io.StringIO(text)):
+        try:
+            out.append(Bar(symbol=symbol,
+                           date=dt.date.fromisoformat(row["Date"]),
+                           open=float(row["Open"]), high=float(row["High"]),
+                           low=float(row["Low"]), close=float(row["Close"]),
+                           volume=int(float(row["Volume"]))))
+        except (ValueError, TypeError, KeyError):
+            continue                       # blank or N/A row
+    return sorted(out, key=lambda b: b.date)
+
+def fetch_stooq(symbol: str, start: dt.date, end: dt.date, fetch=None) -> list[Bar]:
+    fetch = fetch or _fetch
+    url = STOOQ.format(sym=symbol.lower(),
+                       d1=start.strftime("%Y%m%d"), d2=end.strftime("%Y%m%d"))
+    return parse_stooq_csv(fetch(url), symbol)
+
+def crosscheck_window(bars: list[Bar], ref_bars: list[Bar],
+                      dates: list[dt.date], tol: float = 0.005) -> list[BarIssue]:
+    ours = {b.date: b for b in bars}
+    theirs = {b.date: b for b in ref_bars}
+    issues = []
+    for d in dates:
+        a, b = ours.get(d), theirs.get(d)
+        if a is None:
+            continue                       # not our data's problem here
+        if b is None:
+            issues.append(BarIssue(a.symbol, d, "crosscheck",
+                                   "date absent from reference source"))
+            continue
+        if b.close <= 0:
+            continue
+        diff = abs(a.close / b.close - 1.0)
+        if diff > tol:
+            issues.append(BarIssue(a.symbol, d, "crosscheck",
+                f"close {a.close} vs reference {b.close} ({diff:.1%} apart)"))
+    return issues
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pytest tests/test_crosscheck.py -v`
+Expected: 7 passed
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add ebot/crosscheck.py tests/test_crosscheck.py
+git commit -m "feat: independent-source cross-check on event windows"
 ```
 
 ---
@@ -1330,7 +1741,8 @@ from pathlib import Path
 from ebot.backtest import run_events
 from ebot.config import load_config
 from ebot.edgar import fetch_events
-from ebot.prices import load_bars, fetch_bars_via_claude
+from ebot.prices import load_bars, fetch_all_years
+from ebot.validate_bars import validate_bars, FATAL_KINDS
 from ebot.stats import evaluate
 from ebot.types import Trade
 
@@ -1358,13 +1770,26 @@ def main(argv=None) -> int:
     if args.fetch:
         for s in symbols:
             print(f"fetching {s}...", file=sys.stderr)
-            fetch_bars_via_claude(s, cfg)
+            fetch_all_years(s, cfg)
 
     bars = {s: load_bars(s, cfg) for s in symbols}
     missing = [s for s, b in bars.items() if not b]
     if missing:
         print(f"no cached bars for {missing}; run with --fetch", file=sys.stderr)
         return 1
+
+    # Task 5b: refuse to backtest on structurally impossible data.
+    all_issues = [i for s in symbols for i in validate_bars(bars[s], cfg)]
+    fatal = [i for i in all_issues if i.kind in FATAL_KINDS]
+    for i in all_issues:
+        print(f"  [{i.kind}] {i.symbol} {i.date}: {i.detail}", file=sys.stderr)
+    if fatal:
+        print(f"\n{len(fatal)} FATAL data issues. Refusing to backtest on "
+              f"bad data. Fix the cache and re-run.", file=sys.stderr)
+        return 2
+    if all_issues:
+        print(f"{len(all_issues)} non-fatal data warnings (see above).",
+              file=sys.stderr)
 
     events = []
     for t in cfg.whitelist:
@@ -1392,6 +1817,10 @@ def main(argv=None) -> int:
             "total_return": buy_hold,
             "strategy_total_return": strat_total - 1.0,
         },
+        "data_warnings": [
+            {"symbol": i.symbol, "date": str(i.date), "kind": i.kind,
+             "detail": i.detail} for i in all_issues
+        ],
         "known_limitations": {
             "survivorship_bias": (
                 "The whitelist is 12 names that are large and liquid TODAY. "

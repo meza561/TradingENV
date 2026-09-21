@@ -30,8 +30,8 @@ def test_allowlist_is_read_only():
 def test_argv_never_contains_order_tool(tmp_path):
     seen = {}
 
-    def runner(argv):
-        seen["argv"] = argv
+    def runner(argv, prompt):
+        seen["argv"], seen["prompt"] = argv, prompt
         return payload(2020)
 
     fetch_year("AAPL", 2020, cfg_for(tmp_path), runner=runner)
@@ -43,19 +43,18 @@ def test_argv_never_contains_order_tool(tmp_path):
 def test_request_window_is_bounded_to_the_year(tmp_path):
     seen = {}
 
-    def runner(argv):
-        seen["argv"] = argv
+    def runner(argv, prompt):
+        seen["argv"], seen["prompt"] = argv, prompt
         return payload(2020)
 
     fetch_year("AAPL", 2020, cfg_for(tmp_path), runner=runner)
-    flat = " ".join(seen["argv"])
-    assert "2020-01-01" in flat and "2020-12-31" in flat
+    assert "2020-01-01" in seen["prompt"] and "2020-12-31" in seen["prompt"]
 
 
 def test_parses_and_caches(tmp_path):
     calls = []
 
-    def runner(argv):
+    def runner(argv, prompt):
         calls.append(argv)
         return payload(2020)
 
@@ -70,10 +69,10 @@ def test_parses_and_caches(tmp_path):
 def test_fetch_all_years_skips_cached_years(tmp_path):
     calls = []
 
-    def runner(argv):
+    def runner(argv, prompt):
         calls.append(argv)
-        year = next(a for a in argv if "-01-01" in a)
-        return payload(year.split("-")[0][-4:])
+        year = next(w for w in prompt.split('"') if w.count("-") == 2)[:4]
+        return payload(year)
 
     c = cfg_for(tmp_path, price_floor=dt.date(2020, 1, 1))
     fetch_all_years("AAPL", c, runner=runner)
@@ -85,7 +84,7 @@ def test_fetch_all_years_skips_cached_years(tmp_path):
 
 
 def test_rejects_unparseable_output(tmp_path):
-    def runner(argv):
+    def runner(argv, prompt):
         return "I could not find that data, sorry!"
 
     with pytest.raises(ValueError):
@@ -93,7 +92,7 @@ def test_rejects_unparseable_output(tmp_path):
 
 
 def test_rejects_bars_outside_requested_year(tmp_path):
-    def runner(argv):
+    def runner(argv, prompt):
         return json.dumps({"bars": [
             {"date": "2019-06-01", "open": 1, "high": 1, "low": 1,
              "close": 1, "volume": 1}]})
@@ -103,7 +102,7 @@ def test_rejects_bars_outside_requested_year(tmp_path):
 
 
 def test_load_bars_returns_sorted(tmp_path):
-    def runner(argv):
+    def runner(argv, prompt):
         return json.dumps({"bars": [
             {"date": "2020-03-05", "open": 1, "high": 1, "low": 1,
              "close": 1, "volume": 1},

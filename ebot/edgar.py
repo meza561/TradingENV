@@ -35,3 +35,36 @@ def resolve_cik(ticker: str, cfg: Config, fetch=None) -> str:
     if ticker not in mapping:
         raise KeyError(f"ticker not found in SEC registry: {ticker}")
     return mapping[ticker]
+
+
+import datetime as dt
+from zoneinfo import ZoneInfo
+
+from ebot.types import Event
+
+ET = ZoneInfo("US/Eastern")
+SUBS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
+
+
+def fetch_events(ticker: str, cfg: Config, fetch=None) -> list[Event]:
+    """8-K Item 2.02 filings. acceptanceDateTime is when the news became
+    public -- using the report date instead would leak look-ahead."""
+    fetch = fetch or _fetch
+    ticker = ticker.strip().upper()
+    cik = resolve_cik(ticker, cfg, fetch)
+    raw = json.loads(fetch(SUBS_URL.format(cik=cik), cfg.sec_user_agent))
+    recent = raw["filings"]["recent"]
+    out: dict[str, Event] = {}
+    for acc, form, items, accepted in zip(
+        recent["accessionNumber"], recent["form"],
+        recent["items"], recent["acceptanceDateTime"],
+    ):
+        if form != "8-K":
+            continue
+        if "2.02" not in [i.strip() for i in (items or "").split(",")]:
+            continue
+        ts = dt.datetime.fromisoformat(accepted.replace("Z", "+00:00")).astimezone(ET)
+        if ts.date() < cfg.price_floor:
+            continue
+        out[acc] = Event(ticker=ticker, cik=cik, accession=acc, accepted_at=ts)
+    return sorted(out.values(), key=lambda e: e.accepted_at)

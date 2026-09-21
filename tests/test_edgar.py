@@ -126,3 +126,77 @@ def test_item_202_matched_exactly_not_substring(tmp_path):
 def test_sorted_ascending_by_time(tmp_path):
     evs = fetch_events("AAPL", cfg_for(tmp_path), fetch=_fake)
     assert evs == sorted(evs, key=lambda e: e.accepted_at)
+
+
+import gzip
+import zlib
+from ebot import edgar as _edgar
+
+
+class _Resp:
+    def __init__(self, body, enc=None):
+        self._b, self.headers = body, {"Content-Encoding": enc} if enc else {}
+
+    def read(self):
+        return self._b
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+@pytest.mark.parametrize("enc,wrap", [
+    (None, lambda b: b),
+    ("gzip", gzip.compress),
+    ("deflate", lambda b: zlib.compress(b)[2:-4]),
+])
+def test_fetch_decompresses_by_content_encoding(monkeypatch, enc, wrap):
+    """urllib does not auto-decompress; we send Accept-Encoding: gzip."""
+    body = b'{"ok": true}'
+    monkeypatch.setattr(_edgar.urllib.request, "urlopen",
+                        lambda req, timeout=30: _Resp(wrap(body), enc))
+    monkeypatch.setattr(_edgar, "_last_call", [0.0])
+    assert json.loads(_edgar._fetch("https://x", "ua")) == {"ok": True}
+
+
+OLDER_PAGE = json.dumps({
+    "accessionNumber": ["0001-14-07"],
+    "form": ["8-K"],
+    "items": ["2.02"],
+    "acceptanceDateTime": ["2014-07-22T16:30:00.000Z"],
+}).encode()
+
+PAGED_SUBS = json.dumps({"filings": {
+    "recent": {
+        "accessionNumber": ["0001-24-01"],
+        "form": ["8-K"],
+        "items": ["2.02"],
+        "acceptanceDateTime": ["2024-05-02T16:30:12.000Z"],
+    },
+    "files": [
+        {"name": "CIK0000320193-submissions-001.json",
+         "filingFrom": "1994-01-26", "filingTo": "2015-07-22"},
+        {"name": "ancient.json", "filingFrom": "1990-01-01",
+         "filingTo": "1999-12-31"},
+    ],
+}}).encode()
+
+
+def test_follows_older_submission_pages(tmp_path):
+    seen = []
+
+    def fake(url, ua):
+        seen.append(url)
+        if "company_tickers" in url:
+            return FAKE_TICKERS
+        if "submissions-001" in url:
+            return OLDER_PAGE
+        return PAGED_SUBS
+
+    evs = fetch_events("AAPL", cfg_for(tmp_path), fetch=fake)
+    assert {e.accession for e in evs} == {"0001-24-01", "0001-14-07"}, \
+        "older submission page not followed; earliest years silently lost"
+    assert not any("ancient" in u for u in seen), \
+        "page entirely before price_floor should be skipped"

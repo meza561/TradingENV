@@ -1,6 +1,8 @@
+import gzip
 import json
 import time
 import urllib.request
+import zlib
 
 from ebot.cache import get_conn
 from ebot.config import Config
@@ -18,7 +20,14 @@ def _fetch(url: str, ua: str) -> bytes:
     req = urllib.request.Request(
         url, headers={"User-Agent": ua, "Accept-Encoding": "gzip, deflate"})
     with urllib.request.urlopen(req, timeout=30) as r:
-        return r.read()
+        raw = r.read()
+        enc = (r.headers.get("Content-Encoding") or "").lower()
+    # urllib does NOT auto-decompress; without this we parse gzip bytes as JSON.
+    if enc == "gzip":
+        return gzip.decompress(raw)
+    if enc == "deflate":
+        return zlib.decompress(raw, -zlib.MAX_WBITS)
+    return raw
 
 
 def resolve_cik(ticker: str, cfg: Config, fetch=None) -> str:
@@ -44,6 +53,12 @@ from ebot.types import Event
 
 ET = ZoneInfo("US/Eastern")
 SUBS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
+PAGE_URL = "https://data.sec.gov/submissions/{name}"
+
+
+def _rows(page):
+    return zip(page["accessionNumber"], page["form"],
+               page["items"], page["acceptanceDateTime"])
 
 
 def fetch_events(ticker: str, cfg: Config, fetch=None) -> list[Event]:
@@ -53,18 +68,27 @@ def fetch_events(ticker: str, cfg: Config, fetch=None) -> list[Event]:
     ticker = ticker.strip().upper()
     cik = resolve_cik(ticker, cfg, fetch)
     raw = json.loads(fetch(SUBS_URL.format(cik=cik), cfg.sec_user_agent))
-    recent = raw["filings"]["recent"]
+
+    # filings.recent caps at ~1000 entries (AAPL: back to 2015-07 only).
+    # Older filings live in filings.files; without following these the
+    # sample silently loses its earliest years.
+    pages = [raw["filings"]["recent"]]
+    for meta in raw["filings"].get("files") or []:
+        if meta.get("filingTo", "9999") < cfg.price_floor.isoformat():
+            continue                       # entirely before our window
+        pages.append(json.loads(
+            fetch(PAGE_URL.format(name=meta["name"]), cfg.sec_user_agent)))
+
     out: dict[str, Event] = {}
-    for acc, form, items, accepted in zip(
-        recent["accessionNumber"], recent["form"],
-        recent["items"], recent["acceptanceDateTime"],
-    ):
-        if form != "8-K":
-            continue
-        if "2.02" not in [i.strip() for i in (items or "").split(",")]:
-            continue
-        ts = dt.datetime.fromisoformat(accepted.replace("Z", "+00:00")).astimezone(ET)
-        if ts.date() < cfg.price_floor:
-            continue
-        out[acc] = Event(ticker=ticker, cik=cik, accession=acc, accepted_at=ts)
+    for page in pages:
+        for acc, form, items, accepted in _rows(page):
+            if form != "8-K":
+                continue
+            if "2.02" not in [i.strip() for i in (items or "").split(",")]:
+                continue
+            ts = dt.datetime.fromisoformat(
+                accepted.replace("Z", "+00:00")).astimezone(ET)
+            if ts.date() < cfg.price_floor:
+                continue
+            out[acc] = Event(ticker=ticker, cik=cik, accession=acc, accepted_at=ts)
     return sorted(out.values(), key=lambda e: e.accepted_at)

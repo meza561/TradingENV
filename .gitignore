@@ -1,0 +1,36 @@
+# --- SAFETY: operational state that must NEVER be committed ---
+# Committing LIVE_ENABLED would mean any clone starts live-armed.
+LIVE_ENABLED
+HALT
+
+# --- Secrets ---
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+config.yaml          # real config (may hold account number); commit config.example.yaml
+
+# --- Local data & state ---
+cache/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+*.jsonl
+
+# --- Session/tooling noise ---
+.remember/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- macOS ---
+.DS_Store

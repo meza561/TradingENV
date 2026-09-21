@@ -109,19 +109,36 @@ that makes the eventual result meaningful.
 Defined as an exhaustive rule over the `acceptanceDateTime` (ET) of the 8-K, so
 that exactly one case applies to every filing:
 
-| Filing accepted on day D | T0 | Entry |
+| Filing accepted on day D | T0 | T+1 (observation bar) |
 |---|---|---|
-| After 16:00 (post-close) | D | open of D+1 |
-| During session, 09:30-16:00 | D | open of D+1 |
-| Before 09:30 (pre-open) | D-1 (prior session) | open of D |
+| After 16:00 (post-close) | D | D+1 |
+| During session, 09:30-16:00 | D | D+1 |
+| Before 09:30 (pre-open) | D-1 (prior session) | D |
 
 The intraday case deliberately forgoes the same-day move: the system does not
 assume it could have traded a reaction that began while the filing was landing.
-This is conservative in the direction of understating returns.
 
-If D+1 is not a trading day, entry is the next trading session's open. If the
-required prior-20-session or SMA50 history is unavailable, the event is dropped
-rather than computed on partial data.
+**Entry: the close of T+1.**
+
+R6 forbids live trading in the first 15 minutes after the open, so a fill at the
+T+1 open is unreachable by the live system; modeling it would measure a strategy
+the bot cannot execute. The T+1 close is reachable, and is approximated live by a
+limit order placed in the final 15 minutes of the session, with error bounded by
+`LIMIT_BAND_PCT`.
+
+**Gate inputs are frozen at the T+1 open.** No gate condition may read T+1's
+high, low, close, or volume. The entry price *is* the T+1 close; admitting it as
+a gate input would be circular. This is asserted by test, not just stated.
+
+**Disclosed conservatism.** The window 09:45-16:00 on T+1 is legally tradeable
+under R6, but daily bars cannot model a mid-session fill, so this rule forgoes
+it. Measured returns therefore understate what the live system could capture.
+Correcting it would require intraday bars (roughly 78x the data volume); that
+trade was considered and declined on 2026-09-21.
+
+If D+1 is not a trading day, T+1 is the next trading session. If the required
+prior-20-session or SMA50 history is unavailable, the event is dropped rather
+than computed on partial data.
 
 ### 6.2 Gate conditions (ALL must hold)
 
@@ -138,9 +155,15 @@ Every input is computed **only from bars strictly before entry**.
 ### 6.3 Position and exit
 
 - Fixed **$25 notional**, equal weight, no scaling.
-- **Primary exit: close of T+3.** Fixed in advance.
-- T+1 and T+5 are reported as secondary diagnostics only and **may not be used
-  to select the primary horizon.**
+- Entry at the **close of T+1** (see 6.1).
+- **Primary exit: the close of the third session after T+1.** Fixed in advance.
+- Returns at +1 and +5 sessions after entry are reported as secondary
+  diagnostics only and **may not be used to select the primary horizon.**
+
+This makes the measured quantity post-earnings *drift* rather than the initial
+reaction — the standard formulation of the PEAD anomaly. It is expected to lower
+measured returns relative to an open-entry model, making 7.4 harder to clear.
+That is intended: an edge that survives is one the live system can capture.
 
 ### 6.4 Benchmarks
 

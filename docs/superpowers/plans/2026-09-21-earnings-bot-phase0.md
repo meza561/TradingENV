@@ -1078,7 +1078,7 @@ git commit -m "feat: independent-source cross-check on event windows"
 
 **Interfaces:**
 - Consumes: `Bar` (Task 1)
-- Produces: `sessions_from_bars(bars: list[Bar]) -> list[dt.date]`; `resolve_timing(accepted_at: dt.datetime, sessions: list[dt.date]) -> tuple[dt.date, dt.date] | None` returning `(t0, entry_date)`
+- Produces: `sessions_from_bars(bars: list[Bar]) -> list[dt.date]`; `resolve_timing(accepted_at: dt.datetime, sessions: list[dt.date]) -> tuple[dt.date, dt.date] | None` returning `(t0, t1)` where t1 is the observation bar. **Per spec 6.1 the entry price is t1's CLOSE**; this function returns the date only.
 
 This is the highest-risk function in Phase 0 — an off-by-one here silently corrupts every result. The spec's three cases are tested exhaustively plus boundary times.
 
@@ -1383,6 +1383,8 @@ def test_builds_trade_with_t3_exit():
     assert tr is not None
     assert tr.entry_date == entry
     assert tr.exit_date == sorted(b.date for b in bars if b.date > entry)[CFG.hold_days - 1]
+    assert tr.entry_px == next(b.close for b in bars if b.date == entry), \
+        "spec 6.1: entry price is the T+1 CLOSE, not the open"
     assert tr.ret > 0
     assert tr.excess == tr.ret - tr.spy_ret
 
@@ -1427,9 +1429,10 @@ from ebot.gate import passes_gate
 from ebot.types import Bar, Event, Trade
 
 def _ret(bars: dict[dt.date, Bar], entry: dt.date, exit_: dt.date) -> float | None:
+    """Close-to-close. Spec 6.1: entry is the T+1 CLOSE, not the open."""
     if entry not in bars or exit_ not in bars:
         return None
-    return bars[exit_].close / bars[entry].open - 1.0
+    return bars[exit_].close / bars[entry].close - 1.0
 
 def build_trade(event: Event, bars: list[Bar], bench_bars: list[Bar],
                 cfg: Config) -> Trade | None:
@@ -1454,7 +1457,7 @@ def build_trade(event: Event, bars: list[Bar], bench_bars: list[Bar],
         return None
     return Trade(ticker=event.ticker, accepted_at=event.accepted_at, t0=t0,
                  entry_date=entry, exit_date=exit_,
-                 entry_px=by_date[entry].open, exit_px=by_date[exit_].close,
+                 entry_px=by_date[entry].close, exit_px=by_date[exit_].close,
                  ret=r, spy_ret=br, excess=r - br)
 
 def run_events(events: list[Event], bars_by_symbol: dict[str, list[Bar]],

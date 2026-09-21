@@ -1,0 +1,13 @@
+whitelist: [AAPL, MSFT, NVDA, AMZN, GOOGL, META, AVGO, JPM, WMT, COST, HD, NFLX]
+benchmark: SPY
+price_floor: 2014-01-02
+train_test_split: 2021-01-01
+hold_days: 3
+gap_min_pct: 2.0
+volume_mult: 1.5
+min_dollar_volume: 50000000.0
+extended_mult: 1.15
+lookback_sessions: 20
+sma_window: 50
+sec_user_agent: "ebot-research you@example.com"
+cache_dir: cache

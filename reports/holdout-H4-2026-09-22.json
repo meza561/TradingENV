@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-09-22T19:14:57.023697+00:00",
+  "stage": "spec-16 holdout (never examined)",
+  "hypothesis": "H4",
+  "window": [
+    "2004-01-01",
+    "2014-01-02"
+  ],
+  "result": {
+    "n": 1228,
+    "mean": 0.0035840113179400695,
+    "t_stat": 3.6172827458685504,
+    "hit_rate": 0.5496742671009772,
+    "max_drawdown": 0.6966570747593567,
+    "passes_t": true,
+    "passes_hit": true,
+    "passes_dd": false,
+    "passes_all": false
+  },
+  "n_events_in_window": 3359,
+  "data_warnings": 36,
+  "known_bias": "Spec 16.4: H4 enters 5 sessions before the filing using the actual acceptance date, not the previously announced date. Bias favours H4. Disclosed, not corrected."
+}

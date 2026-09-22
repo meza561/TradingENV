@@ -1,0 +1,75 @@
+{
+  "generated_at": "2026-09-22T19:12:53.291310+00:00",
+  "stage": "spec-16 search (2014 to train_test_split)",
+  "bar": {
+    "t_threshold": 2.576,
+    "reason": "Bonferroni p<0.05/5"
+  },
+  "results": {
+    "H1": {
+      "n": 202,
+      "mean": 0.009093815408359723,
+      "t_stat": 2.10036056445482,
+      "hit_rate": 0.5495049504950495,
+      "max_drawdown": 0.39702549378641305,
+      "passes_t": true,
+      "passes_hit": true,
+      "passes_dd": false,
+      "passes_all": false,
+      "advances": false
+    },
+    "H2": {
+      "n": 134,
+      "mean": -0.0023258440730544745,
+      "t_stat": -1.1506918495233092,
+      "hit_rate": 0.4253731343283582,
+      "max_drawdown": 0.348954853249986,
+      "passes_t": false,
+      "passes_hit": false,
+      "passes_dd": false,
+      "passes_all": false,
+      "advances": false
+    },
+    "H3": {
+      "n": 97,
+      "mean": 0.005492609382209612,
+      "t_stat": 1.06440759906071,
+      "hit_rate": 0.4639175257731959,
+      "max_drawdown": 0.3288989112425073,
+      "passes_t": false,
+      "passes_hit": false,
+      "passes_dd": false,
+      "passes_all": false,
+      "advances": false
+    },
+    "H4": {
+      "n": 1043,
+      "mean": 0.0024118295583385727,
+      "t_stat": 2.7958898492378514,
+      "hit_rate": 0.5570469798657718,
+      "max_drawdown": 0.47412602053482356,
+      "passes_t": true,
+      "passes_hit": true,
+      "passes_dd": false,
+      "passes_all": false,
+      "advances": true
+    },
+    "H5": {
+      "n": 155,
+      "mean": 0.004255463454107358,
+      "t_stat": 0.9383549148562066,
+      "hit_rate": 0.5419354838709678,
+      "max_drawdown": 0.3970254937864136,
+      "passes_t": false,
+      "passes_hit": true,
+      "passes_dd": false,
+      "passes_all": false,
+      "advances": false
+    }
+  },
+  "best": "H4",
+  "advancing": [
+    "H4"
+  ],
+  "note": "Spec 16.2: at most ONE advances to the never-examined 2004-2013 holdout. None advancing is a complete result (16.6)."
+}

@@ -85,12 +85,35 @@ Historical event dates therefore come from SEC EDGAR.
 - Cached in SQLite (`cache/events.db`), keyed `(cik, accession)`.
 - SEC requires a declared User-Agent; requests are rate-limited to 10/sec.
 
-### 5.2 Prices — `prices.py`
+### 5.2 Prices — `yahoo.py` (primary), `prices.py` (MCP reference)
 
-- Source: `get_equity_historicals`, `interval=day`, `adjustment_type=split`,
-  `bounds=regular`.
-- Verified available depth: **2014-01-02 to present** (3,197 bars for AAPL).
+**Amended 2026-09-22.** Bulk history comes from Yahoo's chart endpoint;
+the Robinhood MCP is the independent cross-check.
+
+- Primary: Yahoo `v8/finance/chart`, `interval=1d`, using `indicators.quote`
+  (split-adjusted, matching the original `adjustment_type=split` choice) and
+  NOT `adjclose`, which also folds in dividends.
+- Reference: `get_equity_historicals` via `claude -p`, unchanged.
+- Verified depth: **2014-01-02 to present**, 3,199 bars per symbol.
 - Cached in SQLite (`cache/prices.db`), keyed `(symbol, date)`.
+
+**Why amended.** Routing 166 bulk price requests through `claude -p` exhausted
+the operator's session limit mid-run (154 of 166 failed with "You've hit your
+session limit"), took ~103s per call, and competed with their own Claude Code
+usage. The spec's reasoning — the MCP is OAuth-backed, so the LLM process is
+the only authenticated client — is correct for the *order* path but was
+over-applied to *public historical prices*, which need no broker auth at all.
+Yahoo returns the same data in 6.5 seconds total at zero model cost.
+
+**Verification.** 3,693 overlapping bars compared between the two sources:
+**0 mismatches**, max close difference 0.098% (SPY exactly 0.000%), against a
+0.5% tolerance. Stooq, originally named as the cross-check source, now serves
+a JavaScript browser challenge and was never functional against live data —
+its tests passed only because they injected fake CSV.
+
+**Residual risk.** Yahoo's endpoint is unofficial and may change without
+notice. Acceptable for a one-time research pull; the live bot (Phase 1) still
+reads prices through the authenticated MCP.
 
 ### 5.3 Whitelist
 

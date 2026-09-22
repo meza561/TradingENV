@@ -1,52 +1,25 @@
-import csv
-import io
+"""Cross-check the primary price source against an independent one.
+
+Primary is Yahoo (bulk, keyless). The reference is the Robinhood MCP, which
+is genuinely independent: different vendor, different adjustment pipeline.
+
+An earlier version used Stooq, which now serves a JavaScript browser
+challenge instead of CSV -- its tests passed only because they injected
+fake CSV, so the check never worked against the live source.
+"""
 import datetime as dt
-import time
-import urllib.request
 
 from ebot.types import Bar
 from ebot.validate_bars import BarIssue
 
-STOOQ = "https://stooq.com/q/d/l/?s={sym}.us&d1={d1}&d2={d2}&i=d"
-_last = [0.0]
-
-
-def _fetch(url: str) -> str:
-    elapsed = time.monotonic() - _last[0]
-    if elapsed < 0.5:
-        time.sleep(0.5 - elapsed)
-    _last[0] = time.monotonic()
-    req = urllib.request.Request(url, headers={"User-Agent": "ebot-research"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return r.read().decode()
-
-
-def parse_stooq_csv(text: str, symbol: str) -> list[Bar]:
-    out = []
-    for row in csv.DictReader(io.StringIO(text)):
-        try:
-            out.append(Bar(symbol=symbol,
-                           date=dt.date.fromisoformat(row["Date"]),
-                           open=float(row["Open"]), high=float(row["High"]),
-                           low=float(row["Low"]), close=float(row["Close"]),
-                           volume=int(float(row["Volume"]))))
-        except (ValueError, TypeError, KeyError):
-            continue                       # blank or N/A row
-    return sorted(out, key=lambda b: b.date)
-
-
-def fetch_stooq(symbol: str, start: dt.date, end: dt.date, fetch=None) -> list[Bar]:
-    fetch = fetch or _fetch
-    url = STOOQ.format(sym=symbol.lower(),
-                       d1=start.strftime("%Y%m%d"), d2=end.strftime("%Y%m%d"))
-    return parse_stooq_csv(fetch(url), symbol)
+DEFAULT_TOL = 0.005
 
 
 def crosscheck_window(bars: list[Bar], ref_bars: list[Bar],
-                      dates: list[dt.date], tol: float = 0.005) -> list[BarIssue]:
-    """Prices and event dates both arrive through one vendor, so a systematic
-    adjustment error would be invisible to internal validation. 0.5% absorbs
-    dividend-adjustment differences while catching a missed split (~50%+)."""
+                      dates: list[dt.date],
+                      tol: float = DEFAULT_TOL) -> list[BarIssue]:
+    """Compare closes on specific dates. 0.5% absorbs dividend-adjustment
+    differences between vendors while catching a missed split (~50%+)."""
     ours = {b.date: b for b in bars}
     theirs = {b.date: b for b in ref_bars}
     issues = []
@@ -65,3 +38,22 @@ def crosscheck_window(bars: list[Bar], ref_bars: list[Bar],
             issues.append(BarIssue(a.symbol, d, "crosscheck",
                 f"close {a.close} vs reference {b.close} ({diff:.1%} apart)"))
     return issues
+
+
+def compare_series(bars: list[Bar], ref_bars: list[Bar],
+                   tol: float = DEFAULT_TOL) -> tuple[list[BarIssue], dict]:
+    """Compare every overlapping date. Returns (issues, stats)."""
+    overlap = sorted({b.date for b in bars} & {b.date for b in ref_bars})
+    issues = crosscheck_window(bars, ref_bars, overlap, tol)
+    ours = {b.date: b for b in bars}
+    theirs = {b.date: b for b in ref_bars}
+    diffs = [abs(ours[d].close / theirs[d].close - 1.0)
+             for d in overlap if theirs[d].close > 0]
+    stats = {
+        "compared": len(overlap),
+        "mismatches": len(issues),
+        "max_diff": max(diffs) if diffs else 0.0,
+        "ours_only": len({b.date for b in bars} - {b.date for b in ref_bars}),
+        "ref_only": len({b.date for b in ref_bars} - {b.date for b in bars}),
+    }
+    return issues, stats

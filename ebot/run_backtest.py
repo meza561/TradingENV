@@ -7,7 +7,8 @@ from pathlib import Path
 from ebot.backtest import run_events
 from ebot.config import load_config
 from ebot.edgar import fetch_events
-from ebot.prices import load_bars, fetch_all_years
+from ebot.prices import load_bars
+from ebot.yahoo import fetch_and_cache
 from ebot.stats import evaluate
 from ebot.types import Trade
 from ebot.validate_bars import validate_bars, FATAL_KINDS
@@ -41,7 +42,7 @@ def main(argv=None) -> int:
     if args.fetch:
         for s in symbols:
             print(f"fetching {s}...", file=sys.stderr)
-            fetch_all_years(s, cfg)
+            fetch_and_cache(s, cfg)
 
     bars = {s: load_bars(s, cfg) for s in symbols}
     missing = [s for s, b in bars.items() if not b]

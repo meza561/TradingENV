@@ -470,3 +470,68 @@ stops there with a written finding.
 - Confirm the whitelist (currently the proposed starter set).
 - Confirm `CYCLE_MINUTES: 15` is acceptable polling frequency.
 - Decide whether Phase 2 paper soak has a minimum duration before Phase 3.
+
+---
+
+## 15. Amendment 2026-09-22 — Power expansion (PRE-REGISTERED)
+
+**Written and committed BEFORE any expansion data was fetched.** Commit order
+is the evidence that this is a test and not a search.
+
+### 15.1 Why
+
+The 2026-09-22 run returned **NO EDGE**: test n=68, t=1.96 against a 2.0 bar,
+hit 63.2%, maxDD 12.8%. Two of three criteria cleared. The operator elected
+to increase statistical power under §7.5, which permits it only when decided
+before a new test set is examined.
+
+**This decision was made after seeing t=1.96.** That is a selection effect and
+it is disclosed here rather than hidden. The design below exists to contain it.
+
+### 15.2 Why more history would be useless
+
+The train/test boundary is fixed at 2021-01-01 and does not move. Extending
+history backward adds **only train events**; test n stays 68 and test power is
+unchanged. Only additional tickers raise test-set power. The boundary is part
+of the pre-registration; moving it would reclassify already-examined train
+events as held-out, which is laundering.
+
+### 15.3 Cohort B — frozen list
+
+Selected by rule: largest US large-caps by market capitalization, continuously
+listed since 2014, not already in the whitelist. **No ticker was selected for
+any property of its returns.**
+
+```
+TSLA UNH  XOM  JNJ  V    MA   PG   LLY
+ORCL CVX  MRK  ABBV KO   PEP  BAC  CRM
+TMO  MCD  CSCO ACN  ABT  ADBE TXN  VZ
+DIS  INTC QCOM CAT
+```
+
+A ticker with unusable EDGAR data is **dropped and recorded as dropped**, never
+swapped for a replacement.
+
+### 15.4 What is decisive
+
+| Result | Status |
+|---|---|
+| **Cohort B alone, test window (2021+)** | **PRIMARY.** Never examined. Clean replication. |
+| Cohort A ∪ B combined, test window | Secondary. Contaminated by the first look. **Cannot clear or fail anything.** |
+| Cohort A alone | Already reported (t=1.96). Restated for completeness only. |
+
+### 15.5 What does not change
+
+The signal definition (§6) and all three success criteria (§7.4) are
+**unchanged**. Not one threshold moves. §7.3 still binds: one run, one report,
+no tuning and re-running.
+
+### 15.6 Interpretation set in advance
+
+A Cohort B result near the threshold **does not establish an edge**. One
+marginal result followed by another marginal result, on correlated names in
+the same market regime, is weak evidence. A pass here warrants at most
+"worth a further pre-registered test", never "deploy capital".
+
+Survivorship bias is **worse** at 40 names than at 12: every name is large
+today. Disclosed, not corrected.

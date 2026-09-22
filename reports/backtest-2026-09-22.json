@@ -1,0 +1,58 @@
+{
+  "generated_at": "2026-09-22T15:26:43.293936+00:00",
+  "n_events": 594,
+  "n_trades": 158,
+  "train": {
+    "n": 90,
+    "mean": 0.0022257813617813367,
+    "t_stat": 0.5157079447143205,
+    "hit_rate": 0.5777777777777777,
+    "max_drawdown": 0.29120577453398716,
+    "passes_t": false,
+    "passes_hit": true,
+    "passes_dd": false,
+    "passes_all": false
+  },
+  "test": {
+    "n": 68,
+    "mean": 0.0071237623168714905,
+    "t_stat": 1.9609990644642081,
+    "hit_rate": 0.6323529411764706,
+    "max_drawdown": 0.12847849661578714,
+    "passes_t": false,
+    "passes_hit": true,
+    "passes_dd": true,
+    "passes_all": false
+  },
+  "buy_and_hold": {
+    "symbol": "SPY",
+    "window_start": "2021-01-04",
+    "total_return": 1.0614158640667974,
+    "strategy_total_return": 1.0574962061433344
+  },
+  "data_warnings": [
+    {
+      "symbol": "NVDA",
+      "date": "2016-11-11",
+      "kind": "extreme",
+      "detail": "+29.8% from 2016-11-10"
+    },
+    {
+      "symbol": "META",
+      "date": "2022-02-03",
+      "kind": "extreme",
+      "detail": "-26.4% from 2022-02-02"
+    },
+    {
+      "symbol": "NFLX",
+      "date": "2022-04-20",
+      "kind": "extreme",
+      "detail": "-35.1% from 2022-04-19"
+    }
+  ],
+  "known_limitations": {
+    "survivorship_bias": "The whitelist is 12 names that are large and liquid TODAY. Backtesting them over 2014+ inflates returns because their survival and growth is known in advance. Spec 11.3: disclosed, not corrected.",
+    "statistical_power": "Spec 7.5: at this sample size only a large edge is detectable. A negative verdict means 'no large edge detectable', not 'no edge exists'.",
+    "entry_conservatism": "Spec 6.1: entry is the T+1 close. The tradeable 09:45-16:00 window on T+1 is forgone because daily bars cannot model a mid-session fill, so returns understate the live system."
+  }
+}

@@ -11,3 +11,5 @@ lookback_sessions: 20
 sma_window: 50
 sec_user_agent: "ebot-research you@example.com"
 cache_dir: cache
+expansion: [TSLA, UNH, XOM, JNJ, V, MA, PG, LLY, ORCL, CVX, MRK, ABBV, KO, PEP,
+            BAC, CRM, TMO, MCD, CSCO, ACN, ABT, ADBE, TXN, VZ, DIS, INTC, QCOM, CAT]

@@ -8,6 +8,7 @@ class Config(BaseModel):
     model_config = {"extra": "forbid", "frozen": True}
 
     whitelist: list[str] = Field(min_length=1)
+    expansion: list[str] = []          # cohort B, spec 15.3
     sec_user_agent: str
     benchmark: str = "SPY"
     price_floor: dt.date = dt.date(2014, 1, 2)
@@ -21,12 +22,12 @@ class Config(BaseModel):
     sma_window: int = 50
     cache_dir: Path = Path("cache")
 
-    @field_validator("whitelist")
+    @field_validator("whitelist", "expansion")
     @classmethod
     def upper_unique(cls, v: list[str]) -> list[str]:
         out = [s.strip().upper() for s in v]
         if len(set(out)) != len(out):
-            raise ValueError("whitelist contains duplicates")
+            raise ValueError("ticker list contains duplicates")
         return out
 
 

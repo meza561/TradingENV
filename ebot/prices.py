@@ -2,6 +2,7 @@ import json
 import re
 import subprocess
 import threading
+import time
 import datetime as dt
 
 from ebot.cache import get_conn
@@ -21,8 +22,15 @@ Reply with ONLY a JSON object, no prose, no code fence:
 def _run(argv: list[str], prompt: str) -> str:
     """Prompt goes on STDIN: --allowedTools is variadic and would otherwise
     swallow a trailing prompt argument as another tool name."""
-    return subprocess.run(argv, input=prompt, capture_output=True, text=True,
-                          timeout=600, check=True).stdout
+    r = subprocess.run(argv, input=prompt, capture_output=True, text=True,
+                       timeout=600)
+    if r.returncode != 0:
+        # Surface stderr. A bare CalledProcessError repr hides it, which made
+        # 168 failed fetches indistinguishable from each other.
+        raise RuntimeError(
+            f"claude -p exited {r.returncode}: "
+            f"stderr={r.stderr.strip()[:400]!r} stdout={r.stdout.strip()[:200]!r}")
+    return r.stdout
 
 
 def _cached_years(symbol: str, cfg: Config) -> set[int]:
@@ -31,6 +39,20 @@ def _cached_years(symbol: str, cfg: Config) -> set[int]:
         "SELECT DISTINCT substr(date,1,4) AS y FROM bars WHERE symbol = ?",
         (symbol,)).fetchall()
     return {int(r["y"]) for r in rows}
+
+
+def fetch_year_retrying(symbol: str, year: int, cfg: Config, runner=None,
+                        attempts: int = 3) -> list[Bar]:
+    """Retry transient failures (usage limits, network) with backoff."""
+    last = None
+    for i in range(attempts):
+        try:
+            return fetch_year(symbol, year, cfg, runner)
+        except (RuntimeError, ValueError, subprocess.TimeoutExpired) as e:
+            last = e
+            if i < attempts - 1:
+                time.sleep(5 * (2 ** i))
+    raise last
 
 
 def fetch_year(symbol: str, year: int, cfg: Config, runner=None) -> list[Bar]:

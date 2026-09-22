@@ -10,9 +10,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from ebot.config import load_config
-from ebot.prices import fetch_year, _cached_years
+from ebot.prices import fetch_year_retrying, _cached_years
 
-WORKERS = 4
+WORKERS = 3
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
           flush=True)
     t0, done, failed = time.time(), 0, []
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        futs = {ex.submit(fetch_year, s, y, cfg): (s, y) for s, y in todo}
+        futs = {ex.submit(fetch_year_retrying, s, y, cfg): (s, y) for s, y in todo}
         for f in as_completed(futs):
             s, y = futs[f]
             done += 1
@@ -42,7 +42,7 @@ def main():
                       flush=True)
             except Exception as e:
                 failed.append((s, y, repr(e)[:160]))
-                print(f"[{done}/{len(todo)}] {s} {y}: FAILED {e!r:.160}", flush=True)
+                print(f"[{done}/{len(todo)}] {s} {y}: FAILED {e}", flush=True)
     print(f"\ndone in {(time.time()-t0)/60:.1f}m; {len(failed)} failures")
     for s, y, e in failed:
         print(f"  {s} {y}: {e}")

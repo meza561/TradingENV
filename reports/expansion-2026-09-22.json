@@ -1,0 +1,99 @@
+{
+  "generated_at": "2026-09-22T18:07:45.040201+00:00",
+  "n_events": 2055,
+  "n_trades": 348,
+  "train": {
+    "n": 202,
+    "mean": 0.0024776875730019156,
+    "t_stat": 1.0045362821448176,
+    "hit_rate": 0.5396039603960396,
+    "max_drawdown": 0.2061318028505652,
+    "passes_t": false,
+    "passes_hit": true,
+    "passes_dd": true,
+    "passes_all": false
+  },
+  "test": {
+    "n": 146,
+    "mean": 0.002222395145194963,
+    "t_stat": 0.8540805196667461,
+    "hit_rate": 0.541095890410959,
+    "max_drawdown": 0.21889677934556417,
+    "passes_t": false,
+    "passes_hit": true,
+    "passes_dd": true,
+    "passes_all": false
+  },
+  "cohort_b_PRIMARY": {
+    "n": 78,
+    "mean": -0.002050591619856369,
+    "t_stat": -0.5613052907987993,
+    "hit_rate": 0.46153846153846156,
+    "max_drawdown": 0.24116733318715136,
+    "passes_t": false,
+    "passes_hit": false,
+    "passes_dd": true,
+    "passes_all": false
+  },
+  "cohort_a_restated": {
+    "n": 68,
+    "mean": 0.0071237623168714905,
+    "t_stat": 1.9609990644642081,
+    "hit_rate": 0.6323529411764706,
+    "max_drawdown": 0.12847849661578714,
+    "passes_t": false,
+    "passes_hit": true,
+    "passes_dd": true,
+    "passes_all": false
+  },
+  "cohort_note": "Spec 15.4: cohort B alone is the ONLY decisive result. Combined ('test') is contaminated by the 2026-09-22 look and cannot clear or fail anything. Cohort A is restated for completeness.",
+  "buy_and_hold": {
+    "symbol": "SPY",
+    "window_start": "2021-01-04",
+    "total_return": 1.0609629507118057,
+    "strategy_total_return": 0.6191507953896376
+  },
+  "data_warnings": [
+    {
+      "symbol": "NVDA",
+      "date": "2016-11-11",
+      "kind": "extreme",
+      "detail": "+29.8% from 2016-11-10"
+    },
+    {
+      "symbol": "META",
+      "date": "2022-02-03",
+      "kind": "extreme",
+      "detail": "-26.4% from 2022-02-02"
+    },
+    {
+      "symbol": "NFLX",
+      "date": "2022-04-20",
+      "kind": "extreme",
+      "detail": "-35.1% from 2022-04-19"
+    },
+    {
+      "symbol": "ORCL",
+      "date": "2025-09-10",
+      "kind": "extreme",
+      "detail": "+35.9% from 2025-09-09"
+    },
+    {
+      "symbol": "CRM",
+      "date": "2020-08-26",
+      "kind": "extreme",
+      "detail": "+26.0% from 2020-08-25"
+    },
+    {
+      "symbol": "INTC",
+      "date": "2024-08-02",
+      "kind": "extreme",
+      "detail": "-26.1% from 2024-08-01"
+    }
+  ],
+  "known_limitations": {
+    "survivorship_bias": "The whitelist is 12 names that are large and liquid TODAY. Backtesting them over 2014+ inflates returns because their survival and growth is known in advance. Spec 11.3: disclosed, not corrected.",
+    "statistical_power": "Spec 7.5: at this sample size only a large edge is detectable. A negative verdict means 'no large edge detectable', not 'no edge exists'.",
+    "entry_conservatism": "Spec 6.1: entry is the T+1 close. The tradeable 09:45-16:00 window on T+1 is forgone because daily bars cannot model a mid-session fill, so returns understate the live system."
+  }
+}

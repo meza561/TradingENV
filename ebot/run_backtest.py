@@ -35,10 +35,14 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", type=Path, default=Path("config.yaml"))
     ap.add_argument("--fetch", action="store_true", help="refresh price cache")
+    ap.add_argument("--expansion", action="store_true",
+                    help="spec 15 power-expansion experiment (cohort B primary)")
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
 
-    symbols = list(cfg.whitelist) + [cfg.benchmark]
+    cohort_a = list(cfg.whitelist)
+    cohort_b = list(cfg.expansion) if args.expansion else []
+    symbols = cohort_a + cohort_b + [cfg.benchmark]
     if args.fetch:
         for s in symbols:
             print(f"fetching {s}...", file=sys.stderr)
@@ -62,10 +66,14 @@ def main(argv=None) -> int:
         print(f"{len(all_issues)} non-fatal data warnings (above).", file=sys.stderr)
 
     events = []
-    for t in cfg.whitelist:
+    for t in cohort_a + cohort_b:
         events.extend(fetch_events(t, cfg))
     trades = run_events(events, bars, bars[cfg.benchmark], cfg)
     train, test = split_trades(trades, cfg.train_test_split)
+
+    a_set, b_set = set(cohort_a), set(cohort_b)
+    test_a = [t for t in test if t.ticker in a_set]
+    test_b = [t for t in test if t.ticker in b_set]
 
     bench_bars = bars[cfg.benchmark]
     held = [b for b in bench_bars if b.date >= cfg.train_test_split]
@@ -80,6 +88,13 @@ def main(argv=None) -> int:
         "n_events": len(events), "n_trades": len(trades),
         "train": evaluate([t.excess for t in train]),
         "test": test_eval,
+        "cohort_b_PRIMARY": evaluate([t.excess for t in test_b]) if cohort_b else None,
+        "cohort_a_restated": evaluate([t.excess for t in test_a]) if cohort_b else None,
+        "cohort_note": (
+            "Spec 15.4: cohort B alone is the ONLY decisive result. Combined "
+            "('test') is contaminated by the 2026-09-22 look and cannot clear "
+            "or fail anything. Cohort A is restated for completeness."
+        ) if cohort_b else None,
         "buy_and_hold": {
             "symbol": cfg.benchmark,
             "window_start": held[0].date.isoformat() if held else None,
@@ -106,7 +121,26 @@ def main(argv=None) -> int:
                 "mid-session fill, so returns understate the live system."),
         },
     }
-    write_report(Path("reports") / f"backtest-{dt.date.today()}.json", payload)
+    stem = "expansion" if args.expansion else "backtest"
+    write_report(Path("reports") / f"{stem}-{dt.date.today()}.json", payload)
+
+    if cohort_b:
+        for label, block, weight in (
+            ("COHORT B  (PRIMARY, never examined)", payload["cohort_b_PRIMARY"], "DECISIVE"),
+            ("COHORT A  (restated, already seen)", payload["cohort_a_restated"], "not decisive"),
+            ("COMBINED  (contaminated)", payload["test"], "not decisive"),
+        ):
+            print(f"\n{label}  [{weight}]")
+            print(f"  n={block['n']:3d}  mean={block['mean']:+.4%}  "
+                  f"t={block['t_stat']:+.2f}  hit={block['hit_rate']:.1%}  "
+                  f"maxDD={block['max_drawdown']:.1%}")
+            print(f"  t>=2.0:{block['passes_t']}  hit>50%:{block['passes_hit']}  "
+                  f"dd<=25%:{block['passes_dd']}  ->  {block['passes_all']}")
+        pb = payload["cohort_b_PRIMARY"]
+        print(f"\nVERDICT (cohort B only): "
+              f"{'EDGE DETECTED' if pb['passes_all'] else 'NO EDGE'}")
+        print("Spec 15.6: a marginal pass here does NOT establish an edge.")
+        return 0
 
     r = payload["test"]
     print(f"\nEvents: {len(events)}  Trades: {len(trades)}  "

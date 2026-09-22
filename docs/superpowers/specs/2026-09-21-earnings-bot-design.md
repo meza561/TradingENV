@@ -535,3 +535,70 @@ the same market regime, is weak evidence. A pass here warrants at most
 
 Survivorship bias is **worse** at 40 names than at 12: every name is large
 today. Disclosed, not corrected.
+
+---
+
+## 16. Amendment 2026-09-22 — Hypothesis search (PRE-REGISTERED)
+
+**Committed BEFORE any search code was written or any hypothesis evaluated.**
+
+### 16.1 The problem this design solves
+
+Searching for an edge across many hypotheses finds one by construction. §7.5
+measured a 2% false-positive rate for a *single* test; at k tests the family-wise
+rate is roughly 1-(1-0.02)^k. A winner found this way is indistinguishable from
+a real effect at the moment of discovery — which is exactly what Cohort A
+demonstrated.
+
+### 16.2 Design
+
+| Stage | Data | Rule |
+|---|---|---|
+| Search | 2014-2020, 40 names (**already examined**) | Test all k. Report all k. |
+| Advance | — | At most **ONE**, the best, and only if `t >= 2.576` (p<0.01 = 0.05/k) |
+| Validate | **2004-2013, never examined** | ONE run, original §7.4 bar |
+
+Searching on already-spent data consumes no new information. Because exactly
+one hypothesis reaches the holdout, the final test needs no multiplicity
+correction — there is nothing to correct for.
+
+**The holdout is not fetched or touched until a candidate advances.**
+
+### 16.3 The k = 5 hypotheses — FROZEN
+
+Long-only, daily bars, entry at a session close, all gate inputs knowable
+before entry.
+
+| # | Entry | Gate | Exit |
+|---|---|---|---|
+| H1 | T+1 close | G1-G5 as §6.2 | +21 sessions |
+| H2 | T+1 close | G1,G3,G4,G5 with **gap DOWN** ≥2% (G2 inverted) | +3 sessions |
+| H3 | T+1 close | G1-G5 with **gap ≥5%** | +10 sessions |
+| H4 | close of **T0 − 5 sessions** | G4,G5 only, at the entry bar | T0 close |
+| H5 | T+1 close | G1-G5 **and** SPY close > its 200-day SMA at T0 | +21 sessions |
+
+H1, H3 and H5 are acknowledged to be close to parameter variations on the
+failed §6 signal. Pre-registration plus multiplicity correction makes testing
+them legitimate; it does not make them likely.
+
+### 16.4 Known bias in H4
+
+H4 enters 5 sessions before the filing. Companies announce earnings dates
+weeks ahead, so this is broadly realisable — but the EDGAR *acceptance*
+timestamp is the actual filing, not the previously announced date. Where a
+company moved its date, H4 uses information not available at entry. The bias is
+small and favours H4. **Disclosed, not corrected.** A positive H4 result must be
+discounted for this.
+
+### 16.5 What does not change
+
+Position sizing, benchmark, the excess-return measure, the time-based split
+discipline, and §7.4's three criteria at the validation stage. §7.3 still binds:
+no tuning and re-running, and every one of the k results is reported whether or
+not any advances.
+
+### 16.6 Expectation set in advance
+
+The prior is low. Two pre-registered tests already found nothing. This search is
+run because it is cheap and decisive, not because an edge is expected. **"None
+advanced" is the anticipated outcome and is a complete result.**

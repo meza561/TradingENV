@@ -72,8 +72,21 @@ def fetch_yahoo(symbol: str, start: dt.date, end: dt.date, fetch=None) -> list[B
     return bars
 
 
-def fetch_and_cache(symbol: str, cfg: Config, fetch=None) -> list[Bar]:
-    bars = fetch_yahoo(symbol, cfg.price_floor, dt.date.today(), fetch)
+def fetch_and_cache(symbol: str, cfg: Config, fetch=None,
+                    today: dt.date | None = None) -> list[Bar]:
+    """Caches COMPLETED sessions only.
+
+    Yahoo returns a partial bar for the session in progress, whose open can
+    fall outside the intraday high/low. That is structurally impossible data
+    and the validator rejects it (observed on UNH and DIS, 2026-09-22).
+    Excluding the current date costs at most one day and is never usable for
+    a T+3 exit anyway.
+    """
+    today = today or dt.date.today()
+    bars = [b for b in fetch_yahoo(symbol, cfg.price_floor, today, fetch)
+            if b.date < today]
+    if not bars:
+        raise ValueError(f"{symbol}: no completed sessions before {today}")
     conn = get_conn(cfg.cache_dir, "prices")
     conn.executemany("INSERT OR REPLACE INTO bars VALUES (?,?,?,?,?,?,?)",
                      [(b.symbol, b.date.isoformat(), b.open, b.high, b.low,

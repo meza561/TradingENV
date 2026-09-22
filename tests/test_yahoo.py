@@ -83,3 +83,31 @@ def test_fetch_and_cache_round_trips(tmp_path):
     c = cfg_for(tmp_path)
     fetch_and_cache("AAPL", c, fetch=fake)
     assert len(load_bars("AAPL", c)) == 4
+
+
+def test_excludes_the_in_progress_session(tmp_path):
+    """Yahoo's current-day bar is partial and can violate OHLC."""
+    base = dt.datetime(2020, 1, 2, 9, 30, tzinfo=dt.timezone.utc)
+    ts = [int((base + dt.timedelta(days=i)).timestamp()) for i in range(3)]
+
+    def fake(url):
+        return json.dumps({"chart": {"error": None, "result": [{
+            "timestamp": ts,
+            "indicators": {"quote": [{
+                "open": [10.0, 11.0, 99.0], "high": [11.0, 12.0, 12.0],
+                "low": [9.0, 10.0, 11.0], "close": [10.5, 11.5, 11.5],
+                "volume": [100, 200, 300]}]}}]}}).encode()
+
+    c = cfg_for(tmp_path)
+    bars = fetch_and_cache("X", c, fetch=fake, today=dt.date(2020, 1, 4))
+    assert [b.date for b in bars] == [dt.date(2020, 1, 2), dt.date(2020, 1, 3)]
+    assert all(b.date < dt.date(2020, 1, 4) for b in bars)
+
+
+def test_raises_when_only_in_progress_session_available(tmp_path):
+    def fake(url):
+        return json.dumps(payload(1)).encode()
+
+    with pytest.raises(ValueError, match="no completed sessions"):
+        fetch_and_cache("X", cfg_for(tmp_path), fetch=fake,
+                        today=dt.date(2020, 1, 2))

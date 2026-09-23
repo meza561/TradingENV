@@ -33,6 +33,7 @@ class OptionConfig(BaseModel):
     target_delta: float = Field(default=0.30, gt=0, lt=1)
     delta_tolerance: float = Field(default=0.15, gt=0, lt=1)
     max_spread_pct_of_mid: float = Field(default=15.0, gt=0)
+    min_open_interest: int = Field(default=100, ge=0)
 
     cadence_minutes: int = Field(default=15, gt=0)
     open_buffer_minutes: int = Field(default=15, ge=0)

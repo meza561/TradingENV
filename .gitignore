@@ -37,3 +37,6 @@ venv/
 # --- macOS ---
 .DS_Store
 ops/*.local.plist
+options.yaml
+opt-ledger-*.jsonl
+chaincache.db

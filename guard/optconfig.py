@@ -32,7 +32,11 @@ class OptionConfig(BaseModel):
     max_dte: int = Field(default=45, ge=1)
     target_delta: float = Field(default=0.30, gt=0, lt=1)
     delta_tolerance: float = Field(default=0.15, gt=0, lt=1)
-    max_spread_pct_of_mid: float = Field(default=15.0, gt=0)
+    # Calibrated 2026-09-23 from 9 live mid-session contracts across the
+    # whitelist. Post-close quotes are useless for this: XLF showed 70%+
+    # after the bell and 16.9% live. Round-trip spread is the largest
+    # identifiable drag at this size, so the gate is deliberately tight.
+    max_spread_pct_of_mid: float = Field(default=12.0, gt=0)
     min_open_interest: int = Field(default=100, ge=0)
 
     paper_start_usd: float = Field(default=150.0, gt=0)

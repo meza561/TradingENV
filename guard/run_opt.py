@@ -152,6 +152,8 @@ def _cycle(root, config_path, now_et, runner, candidates_fn) -> int:
 
 
 def _no_candidates(cfg, today, runner):
+    """Test seam only. main() wires the real fetcher -- defaulting to this in
+    production would silently find nothing forever while looking healthy."""
     return []
 
 
@@ -170,7 +172,8 @@ def main(argv=None) -> int:
     ap.add_argument("--root", type=Path, default=Path("."))
     a = ap.parse_args(argv)
     try:
-        return run(a.root, a.config)
+        from guard.chains import fetch_candidates
+        return run(a.root, a.config, candidates_fn=fetch_candidates)
     except Exception as e:
         print(f"cycle failure: {e}", file=sys.stderr)
         return CONFIG_ERROR

@@ -168,3 +168,18 @@ def test_paper_balance_shrinks_as_capital_is_deployed(tmp_path):
                                     "cost_usd": 50.0})
     v1, _ = _account(cfg, False, None, cfg.ledger_path)
     assert v0 == 150.0 and v1 == 100.0
+
+
+def test_main_wires_the_real_chain_fetcher(tmp_path, monkeypatch):
+    """A stub default would find nothing forever while looking healthy."""
+    from guard import run_opt, chains
+    seen = {}
+
+    def fake_run(root, config, now_et=None, runner=None, candidates_fn=None):
+        seen["fn"] = candidates_fn
+        return OK
+
+    monkeypatch.setattr(run_opt, "run", fake_run)
+    cp = setup(tmp_path)
+    run_opt.main(["--config", str(cp), "--root", str(tmp_path)])
+    assert seen["fn"] is chains.fetch_candidates

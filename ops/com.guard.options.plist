@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.guard.options</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>REPO/.venv/bin/python</string>
+    <string>-m</string><string>guard.run_opt</string>
+    <string>--config</string><string>REPO/options.yaml</string>
+    <string>--root</string><string>REPO</string>
+  </array>
+  <key>WorkingDirectory</key><string>REPO</string>
+  <key>StartInterval</key><integer>900</integer>
+  <key>StandardOutPath</key><string>REPO/logs/options.out</string>
+  <key>StandardErrorPath</key><string>REPO/logs/options.err</string>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>

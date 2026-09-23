@@ -602,3 +602,53 @@ not any advances.
 The prior is low. Two pre-registered tests already found nothing. This search is
 run because it is cheap and decisive, not because an edge is expected. **"None
 advanced" is the anticipated outcome and is a complete result.**
+
+---
+
+## 17. Feasibility note 2026-09-22 — Form 4 insider study NOT pre-registered
+
+Investigated as the next research direction. **Abandoned at feasibility, before
+any hypothesis was frozen.** Recorded because the finding generalises.
+
+### 17.1 What works
+
+SEC publishes bulk quarterly insider datasets (`<q>_form345.zip`, ~14 MB,
+pre-parsed TSV) — no per-filing XML needed. One quarter (2010q1) holds 69,725
+submissions, 5,526 distinct issuer tickers, 103,233 non-derivative
+transactions, of which **9,620 are code P (open-market purchase)**. The issuer
+list is point-in-time and includes companies that have since delisted, so the
+*event* universe is survivorship-free.
+
+### 17.2 What kills it
+
+**Prices are not survivorship-free.** Of 60 randomly sampled tickers with an
+open-market purchase in 2010q1, Yahoo has 2010 prices for **26 (43%)**. The
+missing 57% are acquisitions and failures: PQ (bankrupt), ARBA, SVU, TAYC,
+BNCN, HFFC (acquired).
+
+The excluded companies split into acquired-at-a-premium (winners, whose absence
+*understates* the signal) and bankrupt (losers, whose absence *overstates* it).
+With over half the sample gone, the result would be determined by which way that
+mix leans — unmeasurable without the missing data. This is not a disclosable
+footnote; it could constitute the entire finding.
+
+Worse than for §6: large caps rarely delist, but insider buying concentrates in
+small caps, which is exactly where delisting happens. **The signal lives where
+the data is missing.**
+
+### 17.3 The free fallback is not viable either
+
+Restricting to the 40 large caps removes the bias but yields ~15 purchases per
+quarter, heavily clustered: BAC x7 and VZ x6 (2010q1), JPM x12 (2016q1), 4 total
+in 2024q1. Post-crisis bank buying dominates. That is one macro event, not a
+repeatable signal.
+
+### 17.4 The generalisable lesson
+
+The binding constraint on retail quantitative research is **data, not ideas**.
+Free price data covers survivors; edges accessible to small capital live in the
+illiquid, high-attrition names that free data silently omits. Free-and-unbiased
+data (major ETFs, large caps) is also the most heavily mined. The tradeoff is
+structural, not incidental.
+
+Three strategy failures taught less than this one feasibility check.

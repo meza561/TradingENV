@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from guard import ledger
-from guard.config import Config
+from guard.optconfig import OptionConfig
 from guard.guards import (halted, is_live, market_window_ok, period_key,
                           already_bought)
 
@@ -11,9 +11,9 @@ ET = ZoneInfo("US/Eastern")
 
 
 def cfg(**kw):
-    d = dict(account_number="1", symbol="VTI", amount_usd=25.0)
+    d = dict(account_number="1")
     d.update(kw)
-    return Config(**d)
+    return OptionConfig(**d)
 
 
 def at(y, m, d, h, mi):

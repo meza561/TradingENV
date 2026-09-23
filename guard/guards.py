@@ -4,7 +4,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from guard import ledger
-from guard.config import Config
 
 ET = ZoneInfo("US/Eastern")
 OPEN, CLOSE = dt.time(9, 30), dt.time(16, 0)
@@ -17,12 +16,12 @@ def halted(root: Path) -> tuple[bool, str]:
     return (True, f"{HALT_FILE} present at {p}") if p.exists() else (False, "")
 
 
-def is_live(cfg: Config, root: Path) -> bool:
+def is_live(cfg, root: Path) -> bool:
     """G1: BOTH keys required. Either missing means paper."""
     return cfg.mode == "live" and (Path(root) / LIVE_FILE).exists()
 
 
-def market_window_ok(now_et: dt.datetime, cfg: Config) -> tuple[bool, str]:
+def market_window_ok(now_et: dt.datetime, cfg) -> tuple[bool, str]:
     # ponytail: weekday + clock only; market holidays are not modelled, so a
     # holiday order queues to the next session. Add a holiday calendar if that
     # ever matters for a buy-only scheduled tool.

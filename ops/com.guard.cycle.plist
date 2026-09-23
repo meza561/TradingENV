@@ -12,6 +12,11 @@
     <string>--root</string><string>REPO</string>
   </array>
   <key>WorkingDirectory</key><string>REPO</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>REPO_HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key><string>REPO_HOME</string>
+  </dict>
   <key>StartInterval</key><integer>900</integer>
   <key>StandardOutPath</key><string>REPO/logs/guard.out</string>
   <key>StandardErrorPath</key><string>REPO/logs/guard.err</string>

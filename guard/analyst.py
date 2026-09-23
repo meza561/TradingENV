@@ -13,6 +13,8 @@ import json
 import re
 import subprocess
 
+from guard import claudebin
+
 from guard.selector import Candidate
 
 ALLOWED_TOOLS = [
@@ -114,7 +116,7 @@ def parse(out: str, candidates: list[Candidate]) -> dict:
 def propose(candidates: list[Candidate], positions: list[dict], value: float,
             budget: float, spent: float, cfg, runner=None) -> dict:
     runner = runner or _run
-    argv = ["claude", "-p", "--allowedTools", ",".join(ALLOWED_TOOLS)]
+    argv = [claudebin.resolve(), "-p", "--allowedTools", ",".join(ALLOWED_TOOLS)]
     assert not any("place_" in a or "cancel_" in a or "exercise" in a
                    for a in argv), "order tool leaked into the analyst allowlist"
     prompt = build_prompt(candidates, positions, value, budget, spent, cfg)

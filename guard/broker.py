@@ -9,6 +9,8 @@ import json
 import re
 import subprocess
 
+from guard import claudebin
+
 PLACE_TOOL = "mcp__robinhood-trading__place_equity_order"
 READ_TOOL = "mcp__robinhood-trading__get_equity_orders"
 
@@ -34,7 +36,7 @@ def _run(argv: list[str], prompt: str) -> str:
 
 
 def _argv(tool: str) -> list[str]:
-    argv = ["claude", "-p", "--allowedTools", tool]
+    argv = claudebin.argv(tool)
     # A read call must never carry the order tool.
     if tool == READ_TOOL:
         assert PLACE_TOOL not in argv, "order tool leaked into a read call"

@@ -9,6 +9,8 @@ import datetime as dt
 import json
 import re
 import subprocess
+
+from guard import claudebin
 from pathlib import Path
 
 from guard.cache import get_conn
@@ -40,8 +42,7 @@ def _json(out, what):
 
 
 def _call(tool, prompt, runner):
-    return _json((runner or _run)(["claude", "-p", "--allowedTools", tool],
-                                  prompt), tool)
+    return _json((runner or _run)(claudebin.argv(tool), prompt), tool)
 
 
 def _cached(conn, day: str, key: str):

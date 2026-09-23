@@ -10,6 +10,8 @@ import json
 import re
 import subprocess
 
+from guard import claudebin
+
 PLACE_TOOL = "mcp__robinhood-trading__place_option_order"
 POSITIONS_TOOL = "mcp__robinhood-trading__get_option_positions"
 QUOTES_TOOL = "mcp__robinhood-trading__get_option_quotes"
@@ -54,7 +56,7 @@ def _run(argv: list[str], prompt: str) -> str:
 
 
 def _argv(tool: str) -> list[str]:
-    return ["claude", "-p", "--allowedTools", tool]
+    return claudebin.argv(tool)
 
 
 def _json(out: str, what: str) -> dict:

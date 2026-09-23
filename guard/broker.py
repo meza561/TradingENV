@@ -30,8 +30,12 @@ def _run(argv: list[str], prompt: str) -> str:
     r = subprocess.run(argv, input=prompt, capture_output=True, text=True,
                        timeout=300)
     if r.returncode != 0:
-        raise RuntimeError(f"claude -p exited {r.returncode}: "
-                           f"stderr={r.stderr.strip()[:300]!r}")
+        # stdout matters as much as stderr: the CLI reports usage limits and
+        # auth problems there, and a stderr-only message says nothing.
+        raise RuntimeError(
+            f"claude -p exited {r.returncode}: "
+            f"stderr={r.stderr.strip()[:300]!r} "
+            f"stdout={r.stdout.strip()[:300]!r}")
     return r.stdout
 
 

@@ -16,6 +16,8 @@
   <dict>
     <key>PATH</key><string>REPO_HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>HOME</key><string>REPO_HOME</string>
+    <key>USER</key><string>REPO_USER</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
   </dict>
   <key>StartInterval</key><integer>900</integer>
   <key>StandardOutPath</key><string>REPO/logs/options.out</string>

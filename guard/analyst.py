@@ -59,8 +59,10 @@ def _run(argv: list[str], prompt: str) -> str:
     r = subprocess.run(argv, input=prompt, capture_output=True, text=True,
                        timeout=300)
     if r.returncode != 0:
-        raise RuntimeError(f"analyst exited {r.returncode}: "
-                           f"stderr={r.stderr.strip()[:300]!r}")
+        raise RuntimeError(
+            f"analyst exited {r.returncode}: "
+            f"stderr={r.stderr.strip()[:300]!r} "
+            f"stdout={r.stdout.strip()[:300]!r}")
     return r.stdout
 
 

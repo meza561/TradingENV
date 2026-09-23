@@ -16,16 +16,26 @@ ET = ZoneInfo("US/Eastern")
 OK, HALTED, CONFIG_ERROR = 0, 2, 3
 
 
+def _codes(reasons: list[str]) -> list[str]:
+    """Leading rule code of each reason, e.g. 'G6'.
+
+    Dedup must key on the CODE, not the whole string: the market-window
+    reason embeds the current clock ("now 22:40"), so comparing full strings
+    would make every cycle look new and write ~96 records a day.
+    """
+    return sorted({r.split()[0] for r in reasons if r})
+
+
 def _log_skip(path: Path, period: str, reasons: list[str], mode: str) -> None:
-    """One skip record per (period, reasons), not one per cycle: a 15-minute
-    schedule would otherwise write ~130 identical lines a week."""
+    """One skip record per (period, reason codes), not one per cycle."""
+    codes = _codes(reasons)
     rows = ledger.read_all(path)
     if rows:
         last = rows[-1]
         if (last.get("kind") == "skipped" and last.get("period") == period
-                and last.get("reasons") == reasons):
+                and last.get("codes") == codes):
             return
-    ledger.append(path, {"kind": "skipped", "period": period,
+    ledger.append(path, {"kind": "skipped", "period": period, "codes": codes,
                          "reasons": reasons, "mode": mode})
 
 

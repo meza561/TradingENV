@@ -78,3 +78,26 @@ def test_lifetime_cap_eventually_stops_buying(tmp_path):
     buys = [r for r in rows if r["kind"] == "paper"]
     assert len(buys) == 2, "cap must stop the third purchase"
     assert any("lifetime" in " ".join(r.get("reasons", [])) for r in rows)
+
+
+def test_skip_dedup_survives_a_changing_clock(tmp_path):
+    """The window reason embeds the current time. Dedup must key on the rule
+    code, or a 15-minute schedule writes ~96 records a day."""
+    cp = setup(tmp_path)
+    base = dt.datetime(2026, 9, 25, 20, 0, tzinfo=ET)
+    for i in range(16):                       # four hours of 15-minute cycles
+        run(tmp_path, cp, base + dt.timedelta(minutes=15 * i))
+    rows = ledger.read_all(tmp_path / "ledger-paper.jsonl")
+    assert len(rows) == 1, f"ledger flooded: {len(rows)} records"
+    assert rows[0]["codes"] == ["G6"]
+
+
+def test_new_reason_code_still_writes_a_record(tmp_path):
+    """Dedup must not swallow a genuinely different refusal."""
+    cp = setup(tmp_path)
+    run(tmp_path, cp, NIGHT)                          # G6
+    run(tmp_path, cp, OPEN_HOURS)                     # buys
+    run(tmp_path, cp, OPEN_HOURS)                     # G8
+    kinds = [(r["kind"], r.get("codes")) for r
+             in ledger.read_all(tmp_path / "ledger-paper.jsonl")]
+    assert kinds == [("skipped", ["G6"]), ("paper", None), ("skipped", ["G8"])]

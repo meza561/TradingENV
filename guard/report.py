@@ -17,7 +17,28 @@ COUNT_ORDER = ("paper_open", "opened", "paper_close", "closed", "declined",
                "refused", "no_candidates", "skipped", "halted", "error")
 
 
-def digest(cfg, today: dt.date | None = None) -> str:
+def _unrealized(cfg, held, runner=None):
+    """Costs one quote call, so it is opt-in."""
+    from guard import broker_opt
+    marks = {q.get("instrument_id"): q for q in
+             broker_opt.quotes([p["option_id"] for p in held], runner)}
+    total, rows = 0.0, []
+    for p in held:
+        try:
+            mark = float(marks.get(p["option_id"], {}).get("mark_price") or 0)
+            entry = float(p.get("average_price") or 0)
+            qty = int(p.get("quantity", 1) or 1)
+        except (TypeError, ValueError):
+            rows.append((p, None, None)); continue
+        if entry <= 0 or mark <= 0:
+            rows.append((p, None, None)); continue
+        total += (mark - entry) * 100 * qty
+        rows.append((p, mark, (mark / entry - 1) * 100))
+    return round(total, 2), rows
+
+
+def digest(cfg, today: dt.date | None = None, marks: bool = False,
+           runner=None) -> str:
     today = today or dt.date.today()
     path = cfg.ledger_path
     rows = ledger.read_all(path)
@@ -30,6 +51,15 @@ def digest(cfg, today: dt.date | None = None) -> str:
     out.append(f"open {len(held)}/{cfg.max_open_positions}   "
                f"deployed ${spent:,.2f} of ${cfg.max_lifetime_usd:,.0f}")
 
+    live_rows = {}
+    if held and marks:
+        try:
+            unreal, mrows = _unrealized(cfg, held, runner)
+            live_rows = {id(p): (m, pct) for p, m, pct in mrows}
+            out[-1] += f"   unrealised {unreal:+,.2f}"
+        except Exception as e:
+            out.append(f"  (live marks unavailable: {e!r:.60})")
+
     if held:
         out.append("")
         for p in held:
@@ -37,10 +67,26 @@ def digest(cfg, today: dt.date | None = None) -> str:
                 dte = (dt.date.fromisoformat(str(p["expiration"])) - today).days
             except (ValueError, TypeError, KeyError):
                 dte = "?"
-            out.append(f"  {p.get('underlying')} {p.get('strike')}"
-                       f"{str(p.get('option_type', 'c'))[0].upper()}"
-                       f"  exp {p.get('expiration')}  {dte} DTE"
-                       f"  entry ${float(p.get('average_price', 0)):.2f}")
+            line = (f"  {p.get('underlying')} {p.get('strike')}"
+                    f"{str(p.get('option_type', 'c'))[0].upper()}"
+                    f"  exp {p.get('expiration')}  {dte} DTE"
+                    f"  entry ${float(p.get('average_price', 0)):.2f}")
+            m, pct = live_rows.get(id(p), (None, None))
+            if m is not None:
+                line += f"  now ${m:.2f}  {pct:+.1f}%"
+            out.append(line)
+
+    trades = paper.closed_trades(path)
+    if trades:
+        total, wins, losses = paper.realized(path)
+        out.append("")
+        out.append(f"closed: {len(trades)} trades   "
+                   f"realised {total:+,.2f}   ({wins} win, {losses} loss)")
+        for t in trades[-3:]:
+            out.append(f"  {t['underlying']} {t['strike']}  "
+                       f"${t['entry']:.2f} -> ${t['exit']:.2f}  "
+                       f"{t['pnl_usd']:+.2f} ({t['pnl_pct']:+.1f}%)  "
+                       f"{str(t['reason'])[:32]}")
 
     counts = collections.Counter(r.get("kind") for r in rows)
     shown = [f"{k} {counts[k]}" for k in COUNT_ORDER if counts.get(k)]
@@ -71,8 +117,10 @@ def digest(cfg, today: dt.date | None = None) -> str:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", type=Path, default=Path("options.yaml"))
+    ap.add_argument("--marks", action="store_true",
+                    help="fetch live marks for open positions (1 broker call)")
     a = ap.parse_args(argv)
-    print(digest(load_option_config(a.config)))
+    print(digest(load_option_config(a.config), marks=a.marks))
     return 0
 
 

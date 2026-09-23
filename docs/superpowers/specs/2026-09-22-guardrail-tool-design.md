@@ -119,3 +119,61 @@ a fallback to defaults.
   expiry stops trading; this is a loud logged failure, not a silent one.
 - **Not audited.** Personal tool. Anyone else running it does so as an operator
   of their own account, with their own credentials, at their own risk.
+
+---
+
+## 18. Amendment 2026-09-22 — Options mode (operator-directed)
+
+The operator has redirected the tool from scheduled index purchases to
+autonomous long-option trading. Recorded in full, including the parts I
+advised against.
+
+### 18.1 Division of authority
+
+| Decision | Owner | Why |
+|---|---|---|
+| **Entry** | headless Claude, read-only tools | Operator's choice. No demonstrated edge (see earnings spec §15, §16). |
+| **Exit** | deterministic code | Arithmetic, not judgment. Theta grinds daily; exits decide outcomes. |
+| **Permission** | validator | Assumes the analyst is wrong or hostile. |
+| **Execution** | executor + post-trade verify | Halts on any mismatch. |
+
+The analyst **proposes**; it cannot place an order. Its `--allowedTools`
+allowlist contains no order tool, enforced by the harness.
+
+### 18.2 Parameters (operator-set 2026-09-22)
+
+```
+exit:            +50% / -50% / close at 14 DTE, whichever first
+cadence:         every 15 minutes during regular hours
+lifetime cap:    $100 gross deployed
+per position:    $50
+max open:        2
+underlyings:     XLU XLF SLV EWZ EEM TLT   (liquid ETFs < $85)
+DTE at entry:    30-45
+spread gate:     hard reject above the configured fraction of mid
+```
+
+At $100 lifetime and $50 per position this is **two trades total**. The cap
+counts gross deployed, not net: a winning close does not replenish it.
+
+### 18.3 Stateless, not continuous
+
+Each cycle spawns a fresh analyst with no memory of prior cycles. It is a
+sequence of independent snapshots, not a persistent agent. Continuity comes
+only from the ledger and open-position state passed into the prompt. This is
+disclosed because the intuitive reading of "monitoring" is wrong.
+
+### 18.4 Recorded assessment
+
+Three pre-registered experiments found no edge accessible to this account.
+Leverage multiplies an edge; with none, it multiplies costs (spread plus
+theta). **The expected outcome is losing most of the $100 deployed.** The
+operator has stated this is experimenting money and has confirmed the
+direction four times. The caps, not the decision quality, are what bound the
+loss.
+
+### 18.5 Never
+
+Selling options (Level 2 forbids it anyway), spreads, 0DTE, rolling,
+averaging down, holding into expiry week, or any position outside the
+whitelist.

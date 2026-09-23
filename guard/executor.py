@@ -51,7 +51,8 @@ def execute(intent: Intent, cfg: Config, root: Path, live: bool,
                              dict(base, kind="error", ref_id=ref_id,
                                   reason=f"place failed: {e!r:.200}"))
     rec = ledger.append(cfg.ledger_path,
-                        dict(base, kind="placed", ref_id=ref_id, response=resp))
+                        dict(base, kind="placed", ref_id=ref_id,
+                             response=broker.essential(resp)))
 
     try:
         orders = broker.get_orders(cfg.account_number, runner)

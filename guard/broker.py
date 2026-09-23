@@ -66,3 +66,16 @@ def get_orders(account: str, runner=None) -> list[dict]:
     runner = runner or _run
     prompt = READ_PROMPT.format(tool=READ_TOOL, account=account)
     return _json(runner(_argv(READ_TOOL), prompt), "get_orders").get("orders") or []
+
+
+ORDER_FIELDS = ("id", "ref_id", "state", "symbol", "side", "type",
+                "dollar_amount", "average_price")
+
+
+def essential(resp) -> dict:
+    """See broker_opt.essential -- broker replies carry a verbose guide field."""
+    if not isinstance(resp, dict):
+        return {"raw": str(resp)[:120]}
+    inner = resp.get("order") if isinstance(resp.get("order"), dict) else resp
+    out = {k: inner[k] for k in ORDER_FIELDS if k in inner}
+    return out or {"raw": str(resp)[:120]}

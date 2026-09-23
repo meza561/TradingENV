@@ -106,3 +106,29 @@ launchctl bootout gui/$UID/com.guard.options
 ```
 
 The DCA cycle installs the same way with `com.guard.cycle`.
+
+## Reading the ledger cheaply
+
+```bash
+.venv/bin/python -m guard.report
+```
+
+Bounded at ~20 lines however long the ledger gets. On a 483-record ledger:
+47,007 bytes raw versus 399 bytes digested — about 11,750 tokens versus 99.
+
+Read the raw JSONL only when auditing a specific decision; `grep` for the
+option_id rather than dumping the file.
+
+## Log sizes
+
+| file | growth | notes |
+|------|--------|-------|
+| `opt-ledger-*.jsonl` | ~0.5 KB per decision | skips are deduped; opens/closes are rare |
+| `logs/options.out` | 1 line per cycle | ~13/day at 30-min cadence |
+| `logs/options.err` | errors only | usually empty |
+| `chaincache.db` | ~30 KB, flat | overwritten per TTL window, does not grow |
+
+Broker replies are trimmed to `id/ref_id/state/quantity/price` before being
+stored. Storing them whole made every order record several KB, because MCP
+results carry a verbose usage `guide` field — a cost paid twice, on disk and
+again in tokens on every read.

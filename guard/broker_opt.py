@@ -149,3 +149,21 @@ def portfolio(account: str, runner=None) -> tuple[float, float]:
     if isinstance(bp, dict):
         bp = bp.get("buying_power")
     return num(d.get("total_value")), num(bp)
+
+
+ORDER_FIELDS = ("id", "ref_id", "state", "quantity", "price")
+
+
+def essential(resp) -> dict:
+    """Keep only what an audit needs.
+
+    Broker replies carry a verbose 'guide' field - hundreds of words of usage
+    notes - and nesting varies. Storing the whole reply bloats every order
+    record from ~0.5 KB to several KB, and that cost is paid twice: on disk,
+    and again in tokens every time the ledger is read back.
+    """
+    if not isinstance(resp, dict):
+        return {"raw": str(resp)[:120]}
+    inner = resp.get("order") if isinstance(resp.get("order"), dict) else resp
+    out = {k: inner[k] for k in ORDER_FIELDS if k in inner}
+    return out or {"raw": str(resp)[:120]}

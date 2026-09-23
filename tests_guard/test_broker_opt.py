@@ -126,3 +126,23 @@ def test_explicit_empty_list_is_a_valid_no_positions():
 def test_unreadable_orders_raises(payload):
     with pytest.raises(ValueError, match="orders"):
         b.orders("1", runner=lambda a, p: json.dumps(payload))
+
+
+def test_essential_strips_the_verbose_guide():
+    fat = {"order": {"id": "o1", "ref_id": "r1", "state": "filled",
+                     "quantity": "1", "price": "0.40"},
+           "guide": "x" * 4000, "data": {"more": "y" * 2000}}
+    lean = b.essential(fat)
+    assert lean == {"id": "o1", "ref_id": "r1", "state": "filled",
+                    "quantity": "1", "price": "0.40"}
+    assert len(json.dumps(lean)) < 120
+
+
+def test_essential_handles_a_flat_reply():
+    assert b.essential({"id": "o1", "state": "queued"}) == {"id": "o1",
+                                                            "state": "queued"}
+
+
+def test_essential_never_loses_everything():
+    assert "raw" in b.essential({"unexpected": "shape"})
+    assert "raw" in b.essential("not a dict")

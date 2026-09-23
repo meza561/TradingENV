@@ -101,9 +101,10 @@ def _cycle(root, config_path, now_et, runner, candidates_fn) -> int:
                         _halt(root, f"cannot close {pos.option_id}: no bid")
                         return HALTED
                     rec["ref_id"] = str(uuid.uuid4())
-                    rec["response"] = broker_opt.close_position(
-                        cfg.account_number, pos.option_id, pos.quantity, bid,
-                        rec["ref_id"], runner)
+                    rec["response"] = broker_opt.essential(
+                        broker_opt.close_position(
+                            cfg.account_number, pos.option_id, pos.quantity,
+                            bid, rec["ref_id"], runner))
                 ledger.append(path, rec)
                 print(f"CLOSE {pos.underlying} {pos.strike:g}: {reason}")
                 positions = [x for x in positions if x["option_id"] != pos.option_id]
@@ -153,8 +154,8 @@ def _cycle(root, config_path, now_et, runner, candidates_fn) -> int:
            "mode": "live" if live else "paper"}
     if live:
         rec["ref_id"] = str(uuid.uuid4())
-        rec["response"] = broker_opt.open_position(
-            cfg.account_number, pick.option_id, pick.ask, rec["ref_id"], runner)
+        rec["response"] = broker_opt.essential(broker_opt.open_position(
+            cfg.account_number, pick.option_id, pick.ask, rec["ref_id"], runner))
     ledger.append(path, rec)
     print(f"{'LIVE' if live else 'paper'} OPEN {pick.underlying} "
           f"{pick.strike:g}{pick.option_type[0].upper()} ${pick.cost_usd:.2f} "

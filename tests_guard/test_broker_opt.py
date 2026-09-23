@@ -98,3 +98,12 @@ def test_portfolio_garbage_sizes_to_zero_not_a_guess():
     def runner(argv, prompt):
         return json.dumps({"total_value": "n/a", "buying_power": None})
     assert b.portfolio("1", runner=runner) == (0.0, 0.0)
+
+
+def test_null_list_fields_return_empty_not_none():
+    """A JSON null must not propagate as None into iteration."""
+    def runner(argv, prompt):
+        return json.dumps({"positions": None, "quotes": None, "orders": None})
+    assert b.positions("1", runner=runner) == []
+    assert b.quotes(["a"], runner=runner) == []
+    assert b.orders("1", runner=runner) == []

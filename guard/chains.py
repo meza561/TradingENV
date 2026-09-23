@@ -62,7 +62,7 @@ def _store(conn, day: str, key: str, payload) -> None:
 def spots(cfg: OptionConfig, runner=None) -> dict[str, float]:
     p = (f'Call {EQUITY_TOOL} with symbols={json.dumps(cfg.underlyings)}.\n'
          'Reply with ONLY JSON, no prose: {"quotes":[{"symbol":"","price":0}]}')
-    out = _call(EQUITY_TOOL, p, runner).get("quotes", [])
+    out = _call(EQUITY_TOOL, p, runner).get("quotes") or []
     got = {}
     for q in out:
         try:
@@ -80,7 +80,7 @@ def expirations(sym: str, cfg, today, conn, runner=None) -> list[str]:
         return hit
     p = (f'Call {CHAINS_TOOL} with underlying_symbol="{sym}".\n'
          'Reply with ONLY JSON, no prose: {"expiration_dates":[]}')
-    allx = _call(CHAINS_TOOL, p, runner).get("expiration_dates", [])
+    allx = _call(CHAINS_TOOL, p, runner).get("expiration_dates") or []
     keep = []
     for e in allx:
         try:
@@ -106,7 +106,7 @@ def instruments(sym: str, exp: str, spot: float, conn, today,
          'Reply with ONLY JSON, no prose: '
          '{"instruments":[{"id":"","strike_price":"","expiration_date":"",'
          '"type":"","tradability":""}]}')
-    rows = _call(INSTR_TOOL, p, runner).get("instruments", [])
+    rows = _call(INSTR_TOOL, p, runner).get("instruments") or []
     lo, hi = spot * (1 - STRIKE_BAND), spot * (1 + STRIKE_BAND)
     keep = []
     for r in rows:
@@ -144,7 +144,7 @@ def fetch_candidates(cfg: OptionConfig, today: dt.date, runner=None) -> list[dic
              'Reply with ONLY JSON, no prose: {"quotes":[{"instrument_id":"",'
              '"bid_price":"","ask_price":"","delta":"","open_interest":0}]}')
         qs = {str(q.get("instrument_id")): q
-              for q in _call(QUOTES_TOOL, p, runner).get("quotes", [])}
+              for q in _call(QUOTES_TOOL, p, runner).get("quotes") or []}
         for b in batch:
             q = qs.get(b["option_id"])
             if not q:

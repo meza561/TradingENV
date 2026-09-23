@@ -65,4 +65,4 @@ def place_order(account: str, symbol: str, amount: float, ref_id: str,
 def get_orders(account: str, runner=None) -> list[dict]:
     runner = runner or _run
     prompt = READ_PROMPT.format(tool=READ_TOOL, account=account)
-    return _json(runner(_argv(READ_TOOL), prompt), "get_orders").get("orders", [])
+    return _json(runner(_argv(READ_TOOL), prompt), "get_orders").get("orders") or []

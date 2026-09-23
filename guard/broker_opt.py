@@ -93,7 +93,7 @@ def close_position(account: str, option_id: str, quantity: int,
 def positions(account: str, runner=None) -> list[dict]:
     runner = runner or _run
     p = POSITIONS_PROMPT.format(tool=POSITIONS_TOOL, account=account)
-    return _json(runner(_argv(POSITIONS_TOOL), p), "positions").get("positions", [])
+    return _json(runner(_argv(POSITIONS_TOOL), p), "positions").get("positions") or []
 
 
 def quotes(option_ids: list[str], runner=None) -> list[dict]:
@@ -101,13 +101,13 @@ def quotes(option_ids: list[str], runner=None) -> list[dict]:
     if not option_ids:
         return []
     p = QUOTES_PROMPT.format(tool=QUOTES_TOOL, ids=json.dumps(option_ids))
-    return _json(runner(_argv(QUOTES_TOOL), p), "quotes").get("quotes", [])
+    return _json(runner(_argv(QUOTES_TOOL), p), "quotes").get("quotes") or []
 
 
 def orders(account: str, runner=None) -> list[dict]:
     runner = runner or _run
     p = ORDERS_PROMPT.format(tool=ORDERS_TOOL, account=account)
-    return _json(runner(_argv(ORDERS_TOOL), p), "orders").get("orders", [])
+    return _json(runner(_argv(ORDERS_TOOL), p), "orders").get("orders") or []
 
 
 PORTFOLIO_TOOL = "mcp__robinhood-trading__get_portfolio"

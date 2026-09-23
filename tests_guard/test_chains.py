@@ -88,3 +88,28 @@ def test_missing_spot_skips_the_underlying(tmp_path):
             return json.dumps({"quotes": []})
         raise AssertionError("must not proceed without a spot price")
     assert chains.fetch_candidates(cfg_for(tmp_path), TODAY, runner) == []
+
+
+def null_runner(argv, prompt):
+    """Every list field comes back as JSON null rather than absent.
+    .get(k, default) returns None when the key EXISTS with a null value."""
+    tool = argv[-1]
+    if "get_equity_quotes" in tool:
+        return json.dumps({"quotes": None})
+    if "get_option_chains" in tool:
+        return json.dumps({"expiration_dates": None})
+    if "get_option_instruments" in tool:
+        return json.dumps({"instruments": None})
+    return json.dumps({"quotes": None})
+
+
+def test_null_fields_do_not_crash_the_cycle(tmp_path):
+    assert chains.fetch_candidates(cfg_for(tmp_path), TODAY, null_runner) == []
+
+
+def test_null_expirations_are_survivable(tmp_path):
+    def runner(argv, prompt):
+        if "get_equity_quotes" in argv[-1]:
+            return json.dumps({"quotes": [{"symbol": "TLT", "price": 80.65}]})
+        return json.dumps({"expiration_dates": None})
+    assert chains.fetch_candidates(cfg_for(tmp_path), TODAY, runner) == []

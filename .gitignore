@@ -36,3 +36,4 @@ venv/
 
 # --- macOS ---
 .DS_Store
+ops/*.local.plist

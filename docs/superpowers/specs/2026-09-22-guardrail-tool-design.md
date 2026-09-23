@@ -188,3 +188,30 @@ loss.
 Selling options (Level 2 forbids it anyway), spreads, 0DTE, rolling,
 averaging down, holding into expiry week, or any position outside the
 whitelist.
+
+### 18.6 Call budget (measured 2026-09-23)
+
+The first scheduled cycle exhausted the operator's session limit before
+reaching the analyst: ~14 transport calls at ~100s each, every morning, because
+chain structure was cached per day.
+
+Two changes, measured:
+
+| | calls |
+|---|---|
+| cold (first run of a TTL window) | **8** |
+| warm (same window) | **1** |
+| after TTL expiry | 8 |
+
+1. `structure_ttl_days: 5`. Strikes and expirations for a 30-45 DTE window
+   barely move, so structure is fetched once per window rather than daily.
+2. Spot prices are fetched **lazily**, only on an instruments cache miss --
+   spot exists solely to pick a strike band, which is itself cached, so a warm
+   run needs none.
+3. Underlyings trimmed 6 -> `TLT, XLU, XLF`. Live data showed SLV over budget
+   at $128, EEM with 24 open interest, EWZ at a 23.6% spread; all three cost
+   calls every window to be rejected.
+
+**Residual:** a cycle with a free slot still costs 1 quotes call plus 1 analyst
+call. At 26 cycles a day that is ~52 calls, which may still press the limit.
+Cadence is the lever if it does.

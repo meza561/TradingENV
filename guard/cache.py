@@ -6,8 +6,7 @@ from pathlib import Path
 SCHEMA = {
     "chaincache": """
         CREATE TABLE IF NOT EXISTS chaincache (
-            day TEXT NOT NULL, k TEXT NOT NULL, payload TEXT NOT NULL,
-            PRIMARY KEY (day, k)
+            k TEXT PRIMARY KEY, payload TEXT NOT NULL, fetched TEXT NOT NULL
         )""",
 }
 

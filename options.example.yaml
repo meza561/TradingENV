@@ -1,7 +1,7 @@
 # Copy to options.yaml (gitignored) and edit.
 mode: paper                 # live ALSO requires LIVE_ENABLED and removing the deny rule
 account_number: "REPLACE_ME"
-underlyings: [XLU, XLF, SLV, EWZ, EEM, TLT]
+underlyings: [TLT, XLU, XLF]   # trimmed 2026-09-23: see below
 
 # sizing: floor, fraction of account value, ceiling
 min_position_usd: 50
@@ -23,6 +23,7 @@ delta_tolerance: 0.15
 max_spread_pct_of_mid: 12   # calibrated 2026-09-23 from live mid-session quotes
 min_open_interest: 100
 
+structure_ttl_days: 5       # strikes/expirations barely move
 cadence_minutes: 15
 open_buffer_minutes: 15
 close_buffer_minutes: 10

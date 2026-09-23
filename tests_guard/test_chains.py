@@ -73,20 +73,47 @@ def test_quotes_are_always_fresh(tmp_path):
     assert sum(1 for t in second if "get_option_quotes" in t) == 1
 
 
-def test_a_new_day_refetches_structure(tmp_path):
+def test_structure_survives_the_next_day(tmp_path):
+    """A 5-day TTL: ~12 structure calls per window, not per morning."""
     cfg = cfg_for(tmp_path)
     chains.fetch_candidates(cfg, TODAY, make_runner([]))
     tomorrow = []
     chains.fetch_candidates(cfg, TODAY + dt.timedelta(days=1),
                             make_runner(tomorrow))
-    assert any("instruments" in t for t in tomorrow)
+    assert not any("instruments" in t or "chains" in t for t in tomorrow)
+
+
+def test_structure_refetches_after_the_ttl_expires(tmp_path):
+    cfg = cfg_for(tmp_path)
+    chains.fetch_candidates(cfg, TODAY, make_runner([]))
+    later = []
+    chains.fetch_candidates(cfg, TODAY + dt.timedelta(days=6),
+                            make_runner(later))
+    assert any("instruments" in t for t in later)
+
+
+def test_cached_run_never_fetches_spot_prices(tmp_path):
+    """Spot is only needed to pick a strike band, which is cached."""
+    cfg = cfg_for(tmp_path)
+    chains.fetch_candidates(cfg, TODAY, make_runner([]))
+    second = []
+    chains.fetch_candidates(cfg, TODAY, make_runner(second))
+    assert not any("get_equity_quotes" in t for t in second)
+    assert sum(1 for t in second if "get_option_quotes" in t) == 1
 
 
 def test_missing_spot_skips_the_underlying(tmp_path):
+    """Spot is fetched lazily, after expirations, so the chain call happens
+    first; without a price there is no strike band and nothing is returned."""
     def runner(argv, prompt):
-        if "get_equity_quotes" in argv[-1]:
+        tool = argv[-1]
+        if "get_equity_quotes" in tool:
             return json.dumps({"quotes": []})
-        raise AssertionError("must not proceed without a spot price")
+        if "get_option_chains" in tool:
+            return json.dumps({"expiration_dates": ["2026-10-30"]})
+        if "get_option_instruments" in tool:
+            raise AssertionError("must not fetch instruments without a spot")
+        return json.dumps({"quotes": []})
     assert chains.fetch_candidates(cfg_for(tmp_path), TODAY, runner) == []
 
 

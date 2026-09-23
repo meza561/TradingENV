@@ -10,7 +10,7 @@ class OptionConfig(BaseModel):
 
     account_number: str = Field(min_length=1)
     mode: str = "paper"
-    underlyings: list[str] = ["XLU", "XLF", "SLV", "EWZ", "EEM", "TLT"]
+    underlyings: list[str] = ["TLT", "XLU", "XLF"]
 
     # caps -- position size scales with account value between the two bounds
     min_position_usd: float = Field(default=50.0, gt=0)
@@ -40,6 +40,7 @@ class OptionConfig(BaseModel):
     min_open_interest: int = Field(default=100, ge=0)
 
     paper_start_usd: float = Field(default=150.0, gt=0)
+    structure_ttl_days: int = Field(default=5, ge=1)
     cadence_minutes: int = Field(default=15, gt=0)
     open_buffer_minutes: int = Field(default=15, ge=0)
     close_buffer_minutes: int = Field(default=10, ge=0)

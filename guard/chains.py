@@ -47,15 +47,27 @@ def _call(tool, prompt, runner):
     return _json((runner or _run)(claudebin.argv(tool), prompt), tool)
 
 
-def _cached(conn, day: str, key: str):
-    row = conn.execute("SELECT payload FROM chaincache WHERE day=? AND k=?",
-                       (day, key)).fetchone()
-    return json.loads(row["payload"]) if row else None
+def _cached(conn, key: str, today: dt.date, ttl_days: int):
+    """Strikes and expirations for a 30-45 DTE window barely move day to day,
+    so a multi-day TTL turns ~12 structure calls every morning into ~12 per
+    TTL window. That matters: 14 calls in one cycle exhausts the session
+    limit before the analyst is ever reached."""
+    row = conn.execute("SELECT payload, fetched FROM chaincache WHERE k=?",
+                       (key,)).fetchone()
+    if not row:
+        return None
+    try:
+        age = (today - dt.date.fromisoformat(row["fetched"])).days
+    except (ValueError, TypeError):
+        return None
+    if not (0 <= age < ttl_days):
+        return None
+    return json.loads(row["payload"])
 
 
-def _store(conn, day: str, key: str, payload) -> None:
+def _store(conn, key: str, today: dt.date, payload) -> None:
     conn.execute("INSERT OR REPLACE INTO chaincache VALUES (?,?,?)",
-                 (day, key, json.dumps(payload)))
+                 (key, json.dumps(payload), today.isoformat()))
     conn.commit()
 
 
@@ -73,9 +85,8 @@ def spots(cfg: OptionConfig, runner=None) -> dict[str, float]:
 
 
 def expirations(sym: str, cfg, today, conn, runner=None) -> list[str]:
-    day = today.isoformat()
     key = f"exp:{sym}"
-    hit = _cached(conn, day, key)
+    hit = _cached(conn, key, today, cfg.structure_ttl_days)
     if hit is not None:
         return hit
     p = (f'Call {CHAINS_TOOL} with underlying_symbol="{sym}".\n'
@@ -90,17 +101,19 @@ def expirations(sym: str, cfg, today, conn, runner=None) -> list[str]:
         if cfg.min_dte <= d <= cfg.max_dte:
             keep.append(e)
     keep = keep[:1]                      # one expiration per underlying
-    _store(conn, day, key, keep)
+    _store(conn, key, today, keep)
     return keep
 
 
-def instruments(sym: str, exp: str, spot: float, conn, today,
+def instruments(sym: str, exp: str, spot_fn, conn, today, cfg,
                 runner=None) -> list[dict]:
-    day = today.isoformat()
     key = f"ins:{sym}:{exp}"
-    hit = _cached(conn, day, key)
+    hit = _cached(conn, key, today, cfg.structure_ttl_days)
     if hit is not None:
         return hit
+    spot = spot_fn(sym)                  # only fetched on a cache miss
+    if not spot:
+        return []
     p = (f'Call {INSTR_TOOL} with chain_symbol="{sym}", '
          f'expiration_dates="{exp}", type="call", state="active".\n'
          'Reply with ONLY JSON, no prose: '
@@ -119,20 +132,28 @@ def instruments(sym: str, exp: str, spot: float, conn, today,
                          "option_type": r.get("type", "call"), "strike": k,
                          "expiration": r.get("expiration_date", exp),
                          "tradability": r.get("tradability", "tradable")})
-    _store(conn, day, key, keep)
+    _store(conn, key, today, keep)
     return keep
 
 
 def fetch_candidates(cfg: OptionConfig, today: dt.date, runner=None) -> list[dict]:
     conn = get_conn(Path(cfg.ledger_dir), "chaincache")
-    px = spots(cfg, runner)
+
+    px: dict[str, float] = {}
+    fetched = []
+
+    def spot_fn(sym: str):
+        """Spot is only needed to pick a strike band, which is itself cached.
+        Fetch it lazily so a fully-cached run costs zero extra calls."""
+        if not fetched:
+            px.update(spots(cfg, runner))
+            fetched.append(True)
+        return px.get(sym)
+
     shortlist: list[dict] = []
     for sym in cfg.underlyings:
-        spot = px.get(sym)
-        if not spot:
-            continue
         for exp in expirations(sym, cfg, today, conn, runner):
-            shortlist += instruments(sym, exp, spot, conn, today, runner)
+            shortlist += instruments(sym, exp, spot_fn, conn, today, cfg, runner)
 
     out: list[dict] = []
     for i in range(0, len(shortlist), MAX_QUOTE_BATCH):

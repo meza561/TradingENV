@@ -9,8 +9,9 @@ HALT
 *.pem
 *.key
 credentials.json
-# real config (holds account number + SEC contact email); commit config.example.yaml instead
+# real configs (hold account numbers); commit the .example files instead
 config.yaml
+guard.yaml
 
 # --- Local data & state ---
 cache/

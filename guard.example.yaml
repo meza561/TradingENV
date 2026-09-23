@@ -1,0 +1,13 @@
+# Copy to guard.yaml (gitignored) and edit.
+mode: paper                 # live ALSO requires a LIVE_ENABLED file you create
+account_number: "REPLACE_ME"
+symbol: VTI
+amount_usd: 25
+schedule: weekly            # weekly | monthly
+whitelist: [VTI, VOO, SPY, ITOT, IVV, BND, AOR]
+max_order_usd: 50
+max_spend_per_period_usd: 50
+max_lifetime_spend_usd: 500
+open_buffer_minutes: 15
+close_buffer_minutes: 10
+ledger_dir: .

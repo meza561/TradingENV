@@ -199,3 +199,15 @@ def test_live_halts_when_holdings_cannot_be_read(tmp_path):
     assert (tmp_path / "HALT").exists()
     rows = ledger.read_all(tmp_path / "opt-ledger-live.jsonl")
     assert rows and rows[-1]["kind"] == "halted"
+
+
+def test_plist_cadence_matches_the_config(tmp_path):
+    """A cadence_minutes that launchd ignores is worse than no setting."""
+    import plistlib, sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path.cwd() / "ops"))
+    import make_plist
+    from guard.optconfig import load_option_config
+    cfg = load_option_config(Path("options.yaml"))
+    d = make_plist.build(cfg)
+    assert d["StartInterval"] == cfg.cadence_minutes * 60

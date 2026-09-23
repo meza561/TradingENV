@@ -88,3 +88,21 @@ the market's:
 - **Not audited.** A personal tool. Anyone else running it does so on their own
   account, with their own credentials, at their own risk.
 - **OAuth expiry stops trading.** Loudly logged, not silent, but it stops.
+
+## Installing the scheduler
+
+The plist filename must match the Label inside it, so name the destination
+explicitly -- a bare directory target keeps the `.local` source name and
+`launchctl bootstrap` then fails with the unhelpful `5: Input/output error`.
+
+```bash
+# options cycle
+cp ops/com.guard.options.local.plist ~/Library/LaunchAgents/com.guard.options.plist
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.guard.options.plist
+launchctl list | grep guard
+
+# stop it
+launchctl bootout gui/$UID/com.guard.options
+```
+
+The DCA cycle installs the same way with `com.guard.cycle`.

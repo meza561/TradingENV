@@ -145,16 +145,27 @@ allowlist contains no order tool, enforced by the harness.
 ```
 exit:            +50% / -50% / close at 14 DTE, whichever first
 cadence:         every 15 minutes during regular hours
-lifetime cap:    $100 gross deployed
-per position:    $50
+position size:   $50 floor, 0.33 x account value, $100 ceiling
+all-time cap:    $2,000 gross deployed (revised 2026-09-22)
 max open:        2
 underlyings:     XLU XLF SLV EWZ EEM TLT   (liquid ETFs < $85)
 DTE at entry:    30-45
 spread gate:     hard reject above the configured fraction of mid
 ```
 
-At $100 lifetime and $50 per position this is **two trades total**. The cap
-counts gross deployed, not net: a winning close does not replenish it.
+**Revised 2026-09-22.** Position size is fixed-fractional between a $50 floor
+and a $100 ceiling; at $150 of account value it sizes to the floor.
+
+The $2,000 all-time cap is **not a loss limit** -- the account can only lose
+what is deposited, so at $150 the binding constraint is always buying power.
+It is a dead-man's switch: a guarantee that cumulative activity eventually
+forces a human back into the loop, however long the tool is left running
+unattended. When it is reached the tool stops and says so; only a person can
+raise it.
+
+Below the $50 floor the tool does not trade at all. The cheapest sane
+contracts observed were ~$36; going lower forces far-OTM lottery tickets, so
+an account that cannot fund the floor sits out rather than trading badly.
 
 ### 18.3 Stateless, not continuous
 

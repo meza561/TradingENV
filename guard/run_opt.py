@@ -58,8 +58,19 @@ def _cycle(root, config_path, now_et, runner, candidates_fn) -> int:
         return OK
 
     live = is_live(cfg, root)
-    positions = (broker_opt.positions(cfg.account_number, runner) if live
-                 else paper.open_positions(path))
+    if live:
+        try:
+            positions = broker_opt.positions(cfg.account_number, runner)
+        except Exception as e:
+            # Unknown holdings is the dangerous state: exits would be skipped
+            # and free slots miscounted. Stop rather than guess.
+            _halt(root, f"cannot read holdings: {e!r:.200}")
+            ledger.append(path, {"kind": "halted", "mode": "live",
+                                 "reason": f"holdings unreadable: {e!r:.200}"})
+            print(f"HALT: cannot read holdings: {e}", file=sys.stderr)
+            return HALTED
+    else:
+        positions = paper.open_positions(path)
 
     # ---- exits first, always -------------------------------------------
     if positions:

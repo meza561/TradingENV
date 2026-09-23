@@ -183,3 +183,19 @@ def test_main_wires_the_real_chain_fetcher(tmp_path, monkeypatch):
     cp = setup(tmp_path)
     run_opt.main(["--config", str(cp), "--root", str(tmp_path)])
     assert seen["fn"] is chains.fetch_candidates
+
+
+def test_live_halts_when_holdings_cannot_be_read(tmp_path):
+    """Unknown holdings -> stop. Never skip exits or miscount free slots."""
+    cp = setup(tmp_path, mode="live")
+    (tmp_path / "LIVE_ENABLED").touch()
+
+    def runner(argv, prompt):
+        if "get_option_positions" in argv[-1]:
+            return json.dumps({"positions": None})   # unreadable
+        return json.dumps({})
+
+    assert run(tmp_path, cp, OPEN_HOURS, runner, candidate_rows) == HALTED
+    assert (tmp_path / "HALT").exists()
+    rows = ledger.read_all(tmp_path / "opt-ledger-live.jsonl")
+    assert rows and rows[-1]["kind"] == "halted"

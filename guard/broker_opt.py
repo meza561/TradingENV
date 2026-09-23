@@ -90,10 +90,27 @@ def close_position(account: str, option_id: str, quantity: int,
     return _json(runner(_argv(PLACE_TOOL), p), "close_position")
 
 
+def _required_list(d: dict, key: str, what: str) -> list:
+    """An UNREADABLE response must not look like an empty one.
+
+    'or []' silences a null, but for holdings that is a fail-open: the cycle
+    would skip exits on positions it cannot see and count free slots it does
+    not have. Only an explicit list means "none"; absent or null is an error.
+    """
+    val = d.get(key, "__missing__")
+    if val == "__missing__" or val is None:
+        raise ValueError(f"{what}: response has no readable {key!r} "
+                         f"(got {val!r}) -- refusing to treat as empty")
+    if not isinstance(val, list):
+        raise ValueError(f"{what}: {key!r} is {type(val).__name__}, not a list")
+    return val
+
+
 def positions(account: str, runner=None) -> list[dict]:
     runner = runner or _run
     p = POSITIONS_PROMPT.format(tool=POSITIONS_TOOL, account=account)
-    return _json(runner(_argv(POSITIONS_TOOL), p), "positions").get("positions") or []
+    return _required_list(_json(runner(_argv(POSITIONS_TOOL), p), "positions"),
+                          "positions", "get_option_positions")
 
 
 def quotes(option_ids: list[str], runner=None) -> list[dict]:
@@ -107,7 +124,8 @@ def quotes(option_ids: list[str], runner=None) -> list[dict]:
 def orders(account: str, runner=None) -> list[dict]:
     runner = runner or _run
     p = ORDERS_PROMPT.format(tool=ORDERS_TOOL, account=account)
-    return _json(runner(_argv(ORDERS_TOOL), p), "orders").get("orders") or []
+    return _required_list(_json(runner(_argv(ORDERS_TOOL), p), "orders"),
+                          "orders", "get_option_orders")
 
 
 PORTFOLIO_TOOL = "mcp__robinhood-trading__get_portfolio"

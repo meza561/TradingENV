@@ -100,10 +100,29 @@ def test_portfolio_garbage_sizes_to_zero_not_a_guess():
     assert b.portfolio("1", runner=runner) == (0.0, 0.0)
 
 
-def test_null_list_fields_return_empty_not_none():
-    """A JSON null must not propagate as None into iteration."""
+def test_null_quotes_are_safely_empty():
+    """Quotes are not state: a missing mark makes exit_decision HALT anyway,
+    so an empty list is safe here. Holdings are different -- see the
+    fail-open tests below."""
     def runner(argv, prompt):
-        return json.dumps({"positions": None, "quotes": None, "orders": None})
-    assert b.positions("1", runner=runner) == []
+        return json.dumps({"quotes": None})
     assert b.quotes(["a"], runner=runner) == []
-    assert b.orders("1", runner=runner) == []
+
+
+@pytest.mark.parametrize("payload", [
+    {"positions": None}, {}, {"positions": "none"}, {"positions": 0},
+])
+def test_unreadable_positions_raises_instead_of_looking_empty(payload):
+    """Fail-open state drift: an unreadable response must not read as 'none'."""
+    with pytest.raises(ValueError, match="positions"):
+        b.positions("1", runner=lambda a, p: json.dumps(payload))
+
+
+def test_explicit_empty_list_is_a_valid_no_positions():
+    assert b.positions("1", runner=lambda a, p: json.dumps({"positions": []})) == []
+
+
+@pytest.mark.parametrize("payload", [{"orders": None}, {}])
+def test_unreadable_orders_raises(payload):
+    with pytest.raises(ValueError, match="orders"):
+        b.orders("1", runner=lambda a, p: json.dumps(payload))

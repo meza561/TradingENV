@@ -79,3 +79,22 @@ def test_empty_quote_request_makes_no_call():
 def test_unparseable_output_raises():
     with pytest.raises(ValueError, match="no JSON"):
         b.positions("1", runner=lambda a, p: "sorry")
+
+
+def test_portfolio_parses_nested_buying_power():
+    def runner(argv, prompt):
+        return json.dumps({"total_value": "149.94",
+                           "buying_power": {"buying_power": "0.0000"}})
+    assert b.portfolio("1", runner=runner) == (149.94, 0.0)
+
+
+def test_portfolio_parses_flat_buying_power():
+    def runner(argv, prompt):
+        return json.dumps({"total_value": "300", "buying_power": "300"})
+    assert b.portfolio("1", runner=runner) == (300.0, 300.0)
+
+
+def test_portfolio_garbage_sizes_to_zero_not_a_guess():
+    def runner(argv, prompt):
+        return json.dumps({"total_value": "n/a", "buying_power": None})
+    assert b.portfolio("1", runner=runner) == (0.0, 0.0)

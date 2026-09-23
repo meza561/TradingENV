@@ -35,6 +35,7 @@ class OptionConfig(BaseModel):
     max_spread_pct_of_mid: float = Field(default=15.0, gt=0)
     min_open_interest: int = Field(default=100, ge=0)
 
+    paper_start_usd: float = Field(default=150.0, gt=0)
     cadence_minutes: int = Field(default=15, gt=0)
     open_buffer_minutes: int = Field(default=15, ge=0)
     close_buffer_minutes: int = Field(default=10, ge=0)

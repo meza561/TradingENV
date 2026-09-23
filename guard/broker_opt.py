@@ -102,3 +102,26 @@ def orders(account: str, runner=None) -> list[dict]:
     runner = runner or _run
     p = ORDERS_PROMPT.format(tool=ORDERS_TOOL, account=account)
     return _json(runner(_argv(ORDERS_TOOL), p), "orders").get("orders", [])
+
+
+PORTFOLIO_TOOL = "mcp__robinhood-trading__get_portfolio"
+PORTFOLIO_PROMPT = """Call {tool} with account_number="{account}".
+Reply with ONLY a JSON object, no prose, no code fence:
+{{"total_value":"","buying_power":""}}"""
+
+
+def portfolio(account: str, runner=None) -> tuple[float, float]:
+    """Returns (account_value, buying_power). Unparseable -> (0, 0), which
+    sizes every position to zero rather than guessing at real money."""
+    runner = runner or _run
+    p = PORTFOLIO_PROMPT.format(tool=PORTFOLIO_TOOL, account=account)
+    d = _json(runner(_argv(PORTFOLIO_TOOL), p), "portfolio")
+    def num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return 0.0
+    bp = d.get("buying_power")
+    if isinstance(bp, dict):
+        bp = bp.get("buying_power")
+    return num(d.get("total_value")), num(bp)

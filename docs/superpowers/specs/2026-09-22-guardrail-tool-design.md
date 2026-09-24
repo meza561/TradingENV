@@ -215,3 +215,32 @@ Two changes, measured:
 **Residual:** a cycle with a free slot still costs 1 quotes call plus 1 analyst
 call. At 26 cycles a day that is ~52 calls, which may still press the limit.
 Cadence is the lever if it does.
+
+### 18.7 Analyst prompt rescoped (2026-09-24)
+
+The first unattended decision declined, quoting the prompt's own words back:
+
+> "Research found no reliable edge in this instrument class, and I have no
+> specific reason to favor any of these low-delta rate/utility calls over
+> holding cash."
+
+That clause came verbatim from the RULES section. It is true, but it made
+declining the only rational answer every cycle — so the tool would never open
+a position, and paper mode would never exercise the exit logic, which is the
+main thing paper mode exists to prove.
+
+The problem was scope, not honesty. The analyst was re-deciding *whether to
+run this strategy at all* every 30 minutes. That is the operator's decision and
+it is already made. Rescoped to contract selection: "none" now means no
+contract on the menu is good enough — spread, delta, thin book — explicitly
+"not a verdict on the strategy".
+
+The confidence caution is unchanged; only the decision-forcing clause was
+removed. Tests assert the new framing is present and that the old clause
+cannot return.
+
+**Also observed:** launchd does not fire while the Mac sleeps and coalesces to
+one run on wake. Between 19:05 and 11:37 exactly two cycles ran, not the ~12 a
+30-minute cadence implies. Not fixable in code; a 30-45 DTE strategy does not
+need twelve looks a day, but a full open-to-exit cycle will take longer to
+observe than estimated.
